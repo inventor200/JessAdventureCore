@@ -24,11 +24,10 @@
 package joeyproductions.jessadventurecore.ui;
 
 import java.awt.Dimension;
-import java.awt.Insets;
 import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.util.ListIterator;
 import javax.swing.JLayeredPane;
-import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
 import javax.swing.SwingUtilities;
@@ -135,7 +134,9 @@ class StoryPanel extends JTextPane implements HabitualRefresher {
         
         sb.append("<html><body>");
         
-        for (LineContent line : lines) {
+        ListIterator<LineContent> iter = lines.listIterator();
+        while (iter.hasNext()) {
+            LineContent line = iter.next();
             if (line.isParagraph) {
                 sb.append("<p>" + INDENT).append(line.content).append("</p>");
             }

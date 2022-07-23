@@ -33,7 +33,6 @@ import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JFrame;
@@ -68,7 +67,6 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
     private JFrame frame;
     private JLabel roomLabel;
     private JPanel storyColumn;
-    //private JButton takeActionButton;
     
     private final StoryPanelBuffer storyPanelBuffer;
     
@@ -83,8 +81,6 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
     private PlayerPrompt playerPrompt;
     
     private JPanel mapColumn;
-    //private JPanel actionPanel;
-    //private JScrollPane actionScroll;
     
     private JessAdventureCore(String name, String author) {
         this.name = name;
@@ -151,21 +147,11 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
                     return getPreferredSize();
                 }
             };
-            //JPanel storyFramer = new JPanel();
-            //storyFramer.setLayout(new BoxLayout(storyFramer, BoxLayout.X_AXIS));
-            //storyFramer.add(Box.createHorizontalGlue());
-            //storyFramer.add(core.storyColumn);
             mainColumns.add(core.storyColumn, BorderLayout.CENTER);
             
             core.storyColumn.add(core.layers, BorderLayout.CENTER);
-            /*storyPanelPair.scrollPane.setBounds(
-                    0, 0, layers.getWidth(), layers.getHeight()
-            );*/
             core.layers.add(storyPanelPair.scrollPane, JLayeredPane.DEFAULT_LAYER);
             core.playerPrompt = new PlayerPrompt(core.storyPanelBuffer, core, core.layers);
-            /*core.playerPrompt.autocompleteSuggestionPanel.setBounds(
-                    0, 0, layers.getWidth(), layers.getHeight()
-            );*/
             core.layers.add(core.playerPrompt.autocompleteSuggestionPanel, JLayeredPane.POPUP_LAYER);
             
             core.roomLabel = new JLabel("Demo Room Name");
@@ -234,21 +220,6 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
             mapFramer.setBorder(BorderFactory.createTitledBorder("Map"));
             core.mapColumn.add(mapFramer);
             
-            /*core.actionPanel = new JPanel();
-            core.actionPanel.setLayout(new BoxLayout(core.actionPanel, BoxLayout.Y_AXIS));
-            JPanel buttonListResizer = new JPanel(new BorderLayout());
-            JPanel buttonList = new JPanel(new GridLayout(0, 1));
-            buttonListResizer.add(buttonList, BorderLayout.PAGE_START);
-            core.actionPanel.add(buttonListResizer);
-            core.actionPanel.add(Box.createVerticalGlue());
-            core.actionScroll = new JScrollPane(core.actionPanel);
-            core.mapColumn.add(core.actionScroll);
-            core.actionScroll.setBorder(BorderFactory.createTitledBorder("Actions"));
-            
-            core.takeActionButton = new JButton(TAKE_ACTION_MSG);
-            core.takeActionButton.addActionListener(core);
-            buttonList.add(core.takeActionButton);*/
-            
             core.frame.setVisible(true);
             core.frame.setLocationRelativeTo(null);
             
@@ -267,11 +238,6 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
         System.out.println("Doing post-UI initialization...");
         
         //TODO: Set up the world state
-        
-        System.out.println("storyColumn: " + storyColumn.getBounds() + " | " + storyColumn.isShowing());
-        System.out.println("layers: " + layers.getBounds() + " | " + layers.isShowing());
-        System.out.println("storyPanelScroll: " + storyPanelScroll.getBounds() + " | " + storyPanelScroll.isShowing());
-        System.out.println("storyPanel: " + storyPanel.getBounds() + " | " + storyPanel.isShowing());
         
         appendParagraph("Testing first paragraph.");
         appendParagraph("Testing second paragraph.");
