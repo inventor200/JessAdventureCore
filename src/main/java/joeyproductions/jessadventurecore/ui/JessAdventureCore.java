@@ -25,23 +25,31 @@ package joeyproductions.jessadventurecore.ui;
 
 import com.github.weisj.darklaf.LafManager;
 import com.github.weisj.darklaf.theme.DarculaTheme;
+import com.github.weisj.darklaf.theme.IntelliJTheme;
 import com.github.weisj.darklaf.theme.Theme;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JLayeredPane;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
+import javax.swing.MenuSelectionManager;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 
 /**
  * The core interface for the adventure.
@@ -50,9 +58,58 @@ import javax.swing.SwingUtilities;
  */
 public class JessAdventureCore implements ActionListener, HabitualRefresher {
     
-    public static int STORY_FONT_SIZE = 14;
-    public static int STORY_LINE_SPACING = 4;
-    public static int STORY_BODY_PADDING = 8;
+    public static float FONT_SIZE_MULTIPLIER = 1f;
+    public static final int FULL_SIZE_FONT_SIZE = 14;
+    public static int STORY_FONT_SIZE = FULL_SIZE_FONT_SIZE;
+    public static final int FULL_SIZE_H1_SIZE = 32;
+    public static int STORY_H1_SIZE = FULL_SIZE_H1_SIZE;
+    public static final int FULL_SIZE_H2_SIZE = 24;
+    public static int STORY_H2_SIZE = FULL_SIZE_H2_SIZE;
+    public static final int FULL_SIZE_STORY_LINE_SPACING = 4;
+    public static int STORY_LINE_SPACING = FULL_SIZE_STORY_LINE_SPACING;
+    public static final int FULL_SIZE_STORY_BODY_PADDING = 8;
+    public static int STORY_BODY_PADDING = FULL_SIZE_STORY_BODY_PADDING;
+    public static final int LIGHT_BACKGROUND_VALUE = 248;
+    public static final int LIGHT_PARAGRAPH_VALUE = 0;
+    public static final int LIGHT_HEADER_VALUE = 96;
+    public static final int DARK_BACKGROUND_VALUE = 32;
+    public static final int DARK_PARAGRAPH_VALUE = 204;
+    public static final int DARK_HEADER_VALUE = 255;
+    public static boolean DARK_MODE = true;
+    
+    private static final String[] FONT_IDS = new String[] {
+        "Button.font",
+        "ToggleButton.font",
+        "RadioButton.font",
+        "CheckBox.font",
+        "ColorChooser.font",
+        "ComboBox.font",
+        "Label.font",
+        "List.font",
+        "MenuBar.font",
+        "MenuItem.font",
+        "RadioButtonMenuItem.font",
+        "CheckBoxMenuItem.font",
+        "Menu.font",
+        "PopupMenu.font",
+        "OptionPane.font",
+        "Panel.font",
+        "ProgressBar.font",
+        "ScrollPane.font",
+        "Viewport.font",
+        "TabbedPane.font",
+        "Table.font",
+        "TableHeader.font",
+        "TextField.font",
+        "PasswordField.font",
+        "TextArea.font",
+        "TextPane.font",
+        "EditorPane.font",
+        "TitledBorder.font",
+        "ToolBar.font",
+        "ToolTip.font",
+        "Tree.font"
+    };
     
     private static final float INVENTORY_COLUMN_FRACTION = 0.4f;
     private static final float MAP_COLUMN_FRACTION = 0.2f;
@@ -67,6 +124,8 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
     private JFrame frame;
     private JLabel roomLabel;
     private JPanel storyColumn;
+    
+    private JCheckBoxMenuItem darkModeItem;
     
     private final StoryPanelBuffer storyPanelBuffer;
     
@@ -95,19 +154,16 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
         System.out.println("Beginning adventure: " + name + " by " + author + "...");
         JessAdventureCore core = new JessAdventureCore(name, author);
         
-        //Theme preferredTheme = LafManager.themeForPreferredStyle(getPreferredThemeStyle());
-        Theme preferredTheme = new DarculaTheme();
-        LafManager.setTheme(preferredTheme);
-        LafManager.install();
-        
         ArrayList<HabitualRefresher> refreshers = new ArrayList<>();
         REFRESH_THREAD = new RefreshThread(refreshers);
         
         core.frame = new JFrame(name);
         CORE = core;
         SwingUtilities.invokeLater(() -> {
+            core.updateLookAndFeel();
             core.frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            core.frame.setSize(1600, 960);
+            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+            core.frame.setSize(screenSize.width - 128, screenSize.height - 256);
             core.frame.setResizable(true);
             
             core.layers = new JLayeredPane();
@@ -220,6 +276,16 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
             mapFramer.setBorder(BorderFactory.createTitledBorder("Map"));
             core.mapColumn.add(mapFramer);
             
+            JMenuBar menuBar = new JMenuBar();
+            core.frame.setJMenuBar(menuBar);
+            
+            JMenu viewMenu = new JMenu("View");
+            menuBar.add(viewMenu);
+            
+            core.darkModeItem = new JCheckBoxMenuItem("Dark mode", DARK_MODE);
+            viewMenu.add(core.darkModeItem);
+            core.darkModeItem.addActionListener(core);
+            
             core.frame.setVisible(true);
             core.frame.setLocationRelativeTo(null);
             
@@ -271,10 +337,46 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
         return Math.round(getWidth() * fraction);
     }
     
+    void updateLookAndFeel() {
+        //TODO: Save preferred theme
+        Theme preferredTheme = DARK_MODE ? new DarculaTheme() : new IntelliJTheme();
+        LafManager.setTheme(preferredTheme);
+        LafManager.install();
+        
+        // We need to rescale the fonts not only to the program's standard,
+        // but also to the rescaled size according to the screen's size.
+        // We will use the label font size as a standard.
+        float standardizedRatio = ((float)FULL_SIZE_FONT_SIZE
+                / (float)UIManager.getFont("Label.font").getSize())
+                * FONT_SIZE_MULTIPLIER;
+        
+        for (String id : FONT_IDS) {
+            Font font = UIManager.getFont(id);
+            int size = Math.round(font.getSize() * standardizedRatio);
+            UIManager.put(id, new Font(font.getName(), font.getStyle(), size));
+        }
+    }
+    
     void updateStyle() {
-        //TODO: Font sizes should change according to screen resolution
-        //TODO: Also account for look and feel theme
-        storyPanel.updateStyle();
+        FONT_SIZE_MULTIPLIER = (float)Toolkit.getDefaultToolkit().getScreenSize().width / 1920f;
+        
+        STORY_FONT_SIZE = Math.round((float)FULL_SIZE_FONT_SIZE * FONT_SIZE_MULTIPLIER);
+        
+        STORY_H1_SIZE = Math.round((float)FULL_SIZE_H1_SIZE * FONT_SIZE_MULTIPLIER);
+        
+        STORY_H2_SIZE = Math.round((float)FULL_SIZE_H2_SIZE * FONT_SIZE_MULTIPLIER);
+        
+        STORY_BODY_PADDING = Math.round((float)FULL_SIZE_STORY_BODY_PADDING * FONT_SIZE_MULTIPLIER);
+        if (STORY_BODY_PADDING < 1) STORY_BODY_PADDING = 1;
+        
+        STORY_LINE_SPACING = Math.round((float)FULL_SIZE_STORY_LINE_SPACING * FONT_SIZE_MULTIPLIER);
+        if (STORY_LINE_SPACING < 1) STORY_LINE_SPACING = 1;
+        
+        updateLookAndFeel();
+        
+        SwingUtilities.invokeLater(() -> {
+            storyPanel.updateStyle();
+        });
     }
     
     void attemptToWriteStory() {
@@ -382,6 +484,12 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
                 promptHasChanged = true;
                 attemptToWriteStory();
             }
+        }
+        else if (e.getSource() == darkModeItem) {
+            DARK_MODE = !DARK_MODE;
+            darkModeItem.setState(DARK_MODE);
+            MenuSelectionManager.defaultManager().clearSelectedPath();
+            updateStyle();
         }
     }
 }

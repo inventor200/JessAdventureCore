@@ -66,9 +66,7 @@ class StoryPanel extends JTextPane implements HabitualRefresher {
         storyPanel.setOpaque(true);
         
         storyPanel.updateStyle();
-        HTMLDocument htmlDocument = (HTMLDocument)storyPanel.htmlEditorKit.createDefaultDocument();
         storyPanel.setEditorKit(storyPanel.htmlEditorKit);
-        storyPanel.setDocument(htmlDocument);
         
         JScrollPane scroll = new JScrollPane(storyPanel) {
             @Override
@@ -107,10 +105,27 @@ class StoryPanel extends JTextPane implements HabitualRefresher {
     
     void updateStyle() {
         StyleSheet styleSheet = new StyleSheet();
-        styleSheet.addRule("body { background-color: #202020; padding: "
+        
+        int backgroundValue = JessAdventureCore.DARK_MODE
+                ? JessAdventureCore.DARK_BACKGROUND_VALUE
+                : JessAdventureCore.LIGHT_BACKGROUND_VALUE;
+        int paragraphValue = JessAdventureCore.DARK_MODE
+                ? JessAdventureCore.DARK_PARAGRAPH_VALUE
+                : JessAdventureCore.LIGHT_PARAGRAPH_VALUE;
+        int headerValue = JessAdventureCore.DARK_MODE
+                ? JessAdventureCore.DARK_HEADER_VALUE
+                : JessAdventureCore.LIGHT_HEADER_VALUE;
+        
+        styleSheet.addRule("body { background-color: "
+                + String.format("#%02x%02x%02x",
+                        backgroundValue, backgroundValue, backgroundValue)
+                + "; padding: "
                 + Integer.toString(JessAdventureCore.STORY_BODY_PADDING)
                 + "px; }");
-        styleSheet.addRule("p, li { color: #CCCCCC; font-size: "
+        styleSheet.addRule("p, li { color: "
+                + String.format("#%02x%02x%02x",
+                        paragraphValue, paragraphValue, paragraphValue)
+                + "; font-size: "
                 + Integer.toString(JessAdventureCore.STORY_FONT_SIZE)
                 + "pt; font-family: sans-serif; }");
         styleSheet.addRule("p { margin: "
@@ -122,11 +137,21 @@ class StoryPanel extends JTextPane implements HabitualRefresher {
                 )
                 + "px 16px; }");
         styleSheet.addRule("ul, ol { margin: 0px 0px 0px 48px; }");
-        styleSheet.addRule("h1, h2 { color: #FFFFFF; font-family: monospace; }");
-        styleSheet.addRule("h1 { font-size: 32pt; }");
-        styleSheet.addRule("h2 { font-size: 24pt; margin: 16px 0px 0px 12px; }");
+        styleSheet.addRule("h1, h2 { color: "
+                + String.format("#%02x%02x%02x",
+                        headerValue, headerValue, headerValue)
+                + "; font-family: monospace; }");
+        styleSheet.addRule("h1 { font-size: "
+                + Integer.toString(JessAdventureCore.STORY_H1_SIZE)
+                + "pt; }");
+        styleSheet.addRule("h2 { font-size: "
+                + Integer.toString(JessAdventureCore.STORY_H2_SIZE)
+                + "pt; margin: 16px 0px 0px 12px; }");
         
         htmlEditorKit.setStyleSheet(styleSheet);
+        HTMLDocument htmlDocument = (HTMLDocument)htmlEditorKit.createDefaultDocument();
+        setDocument(htmlDocument);
+        updateHTML();
     }
     
     void updateHTML() {
