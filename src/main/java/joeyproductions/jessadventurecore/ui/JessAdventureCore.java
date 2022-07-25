@@ -173,9 +173,13 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
                     "<h1>" + name + "</h1><h2>by " + author + "</h2>",
                     core.layers
             );
+            
             core.storyPanel = storyPanelPair.windowContent;
             core.storyPanelScroll = storyPanelPair.scrollPane;
+            core.playerPrompt = new PlayerPrompt(core.storyPanelBuffer, core, core.layers);
+            
             refreshers.add(core.storyPanel);
+            refreshers.add(core.playerPrompt);
             refreshers.add(core);
             
             JPanel mainColumns = new JPanel(new BorderLayout());
@@ -207,7 +211,6 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
             
             core.storyColumn.add(core.layers, BorderLayout.CENTER);
             core.layers.add(storyPanelPair.scrollPane, JLayeredPane.DEFAULT_LAYER);
-            core.playerPrompt = new PlayerPrompt(core.storyPanelBuffer, core, core.layers);
             core.layers.add(core.playerPrompt.autocompleteSuggestionPanel, JLayeredPane.POPUP_LAYER);
             
             core.roomLabel = new JLabel("Demo Room Name");
@@ -310,13 +313,13 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
         append("Testing extra content.");
         appendOther("<ul><li>Testing item one</li><li>Testing item two</li></ul>");
         append("Testing third paragraph.");
-        pressToContinue();
+        /*pressToContinue();
         for (int i = 0; i < 20; i++) {
             append("<br>New line " + i + "!");
         }
         pressToContinue();
         clearScreen();
-        append("The screen has cleared.");
+        append("The screen has cleared.");*/
         
         System.out.println("Adventure has begun!");
         
@@ -380,6 +383,7 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
     }
     
     void attemptToWriteStory() {
+        RefreshThread.startPause(this);
         while (storyPanelBuffer.pauseReason == null && !storyPanelBuffer.buffer.isEmpty()) {
             StoryPanelInstruction instr = storyPanelBuffer.buffer.poll();
             boolean thisWasAPost = true;
@@ -407,8 +411,7 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
                 storyPanel.clearScreen();
             }
             else if (instr instanceof PressToContinueInstruction) {
-                storyPanelBuffer.pauseReason = instr;
-                promptHasChanged = true;
+                changePauseReason(instr);
             }
             else {
                 thisWasAPost = false;
@@ -416,6 +419,12 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
             
             somethingWasPosted |= thisWasAPost;
         }
+        RefreshThread.endPause(this);
+    }
+    
+    private void changePauseReason(StoryPanelInstruction reason) {
+        storyPanelBuffer.pauseReason = reason;
+        promptHasChanged = true;
     }
     
     private boolean storyNeedsScrolling() {
@@ -480,15 +489,14 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
     public void actionPerformed(ActionEvent e) {
         if (e.getSource() == playerPrompt.pressToContinueButton) {
             if (storyPanelBuffer.pauseReason != null) {
-                storyPanelBuffer.pauseReason = null;
-                promptHasChanged = true;
+                changePauseReason(null);
                 attemptToWriteStory();
             }
         }
         else if (e.getSource() == darkModeItem) {
             DARK_MODE = !DARK_MODE;
             darkModeItem.setState(DARK_MODE);
-            MenuSelectionManager.defaultManager().clearSelectedPath();
+            //MenuSelectionManager.defaultManager().clearSelectedPath();
             updateStyle();
         }
     }

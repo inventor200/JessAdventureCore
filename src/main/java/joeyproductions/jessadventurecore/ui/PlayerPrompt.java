@@ -24,22 +24,30 @@
 package joeyproductions.jessadventurecore.ui;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
+import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.awt.event.ActionListener;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JLayeredPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.SwingConstants;
 
 /**
  * A UI component for typing out the prompt, and offering auto-complete.
  * @author Joseph Cramsey
  */
-class PlayerPrompt {
+class PlayerPrompt implements HabitualRefresher {
+    
+    private static final int SUGGESTION_PAD = 4;
     
     final JTextField textField;
     final JButton pressToContinueButton;
@@ -51,6 +59,9 @@ class PlayerPrompt {
     private final ActionListener actionListener;
     private final StoryPanelBuffer storyPanelBuffer;
     private final JPanel pressToContinueButtonResizer;
+    
+    private boolean needsNewSuggestions = false;
+    private int autocompleteLeftOffset = 32;
     
     private class FocusPair {
         
@@ -96,15 +107,22 @@ class PlayerPrompt {
         
         buttonList.add(focusComponents[0].mountedComponent);
         
+        JPanel helpLines = new JPanel(new GridLayout(0, 1));
+        int helpSeparation = 4;
+        
         autocompleteSuggestionPanel = new JPanel() {
             @Override
             public Rectangle getBounds(Rectangle temp) {
-                int height = suggestionList.getPreferredSize().height;
+                int height = suggestionList.getPreferredSize().height
+                        + (SUGGESTION_PAD * 2)
+                        + helpLines.getHeight()
+                        + helpSeparation;
                 int parentHeight = _this.layeredParent.getHeight();
                 
-                temp.x = 0;
+                temp.x = _this.autocompleteLeftOffset; //TODO: offset according to input string
                 temp.y = parentHeight - height;
-                temp.width = _this.layeredParent.getWidth();
+                //temp.width = _this.layeredParent.getWidth();
+                temp.width = getPreferredSize().width;
                 temp.height = height;
                 return temp;
             }
@@ -117,17 +135,40 @@ class PlayerPrompt {
         autocompleteSuggestionPanel.setLayout(
                 new BoxLayout(autocompleteSuggestionPanel, BoxLayout.Y_AXIS)
         );
+        autocompleteSuggestionPanel.setBorder(
+                BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(Color.BLACK),
+                        BorderFactory.createEmptyBorder(
+                                SUGGESTION_PAD, SUGGESTION_PAD,
+                                SUGGESTION_PAD, SUGGESTION_PAD
+                        )
+                )
+        );
+        
+        JLabel selectHelp1 = new JLabel("Up / Down arrows");
+        JLabel selectHelp2 = new JLabel("Enter key to select");
+        Font normalFont = selectHelp1.getFont();
+        int helpSize = Math.round(10f * JessAdventureCore.FONT_SIZE_MULTIPLIER);
+        if (helpSize < 4) helpSize = 4;
+        Font tinyFont = new Font(normalFont.getName(), Font.PLAIN, helpSize);
+        selectHelp1.setFont(tinyFont);
+        selectHelp2.setFont(tinyFont);
+        helpLines.add(selectHelp1);
+        helpLines.add(selectHelp2);
+        autocompleteSuggestionPanel.add(helpLines);
+        autocompleteSuggestionPanel.add(Box.createVerticalStrut(helpSeparation));
+        
         JPanel suggestionListResizer = new JPanel(new BorderLayout());
         suggestionList = new JPanel(new GridLayout(0, 1));
         suggestionListResizer.add(suggestionList, BorderLayout.PAGE_START);
         autocompleteSuggestionPanel.add(suggestionListResizer);
         
         //Test
-        //suggestionList.add(new JLabel("Suggestion 1"));
-        //suggestionList.add(new JLabel("Suggestion 2"));
-        //suggestionList.add(new JLabel("Suggestion 3"));
-        //suggestionList.add(new JLabel("Suggestion 4"));
-        //suggestionList.add(new JLabel("Suggestion 5"));
+        suggestionList.add(new JLabel("Suggestion 1"));
+        suggestionList.add(new JLabel("Suggestion 2"));
+        suggestionList.add(new JLabel("Suggestion 3"));
+        suggestionList.add(new JLabel("Suggestion 4"));
+        suggestionList.add(new JLabel("Suggestion 5"));
     }
     
     void rearrange() {
@@ -180,5 +221,16 @@ class PlayerPrompt {
         buttonList.invalidate();
         buttonList.revalidate();
         buttonList.repaint();
+    }
+
+    @Override
+    public boolean needsRefresh() {
+        return needsNewSuggestions;
+    }
+
+    @Override
+    public void handleRefresh() {
+        needsNewSuggestions = false;
+        //TODO
     }
 }

@@ -45,19 +45,24 @@ public class RefreshThread extends Thread {
     private static final double NANOSECONDS_TO_INTERVAL = (double)FRAMES_PER_SECOND / (double)1E+9;
     private static final boolean DO_DEBUG = false;
     
-    private static boolean PAUSE_FOR_OPERATION;
     private static boolean REFRESH_IN_PROGRESS;
+    private static boolean INIT_COMPLETE;
     
     private double delta;
     private long lastTime;
     private long currentTime;
-    private final ArrayList<HabitualRefresher> refreshers;
+    // This array is shared with the adventure core for initialization
+    private final ArrayList<HabitualRefresher> refreshersLoadingBay;
+    // This array is for actually working with the refreshers once
+    // initialization has completed.
+    private HabitualRefresherProfile[] profiles;
+    
     
     public RefreshThread(ArrayList<HabitualRefresher> refreshers) {
         super();
-        this.refreshers = refreshers;
-        PAUSE_FOR_OPERATION = false;
+        this.refreshersLoadingBay = refreshers;
         REFRESH_IN_PROGRESS = false;
+        INIT_COMPLETE = false;
         delta = 0;
         lastTime = 0;
         currentTime = 0;
@@ -65,24 +70,28 @@ public class RefreshThread extends Thread {
     
     @Override
     public void run() {
+        profiles = new HabitualRefresherProfile[refreshersLoadingBay.size()];
+        for (int i = 0; i < profiles.length; i++) {
+            profiles[i] = new HabitualRefresherProfile(refreshersLoadingBay.get(i));
+        }
+        
         lastTime = System.nanoTime();
+        INIT_COMPLETE = true;
         while (true) {
-            if (!PAUSE_FOR_OPERATION) {
+            if (!pauseRequested()) {
                 currentTime = System.nanoTime();
                 delta += (double)(currentTime - lastTime) * NANOSECONDS_TO_INTERVAL;
                 lastTime = currentTime;
                 if (delta >= 1) {
                     REFRESH_IN_PROGRESS = true;
-                    if (DO_DEBUG) System.out.println("Running bulk refresh for a possible " + refreshers.size() + " items...");
-                    ListIterator<HabitualRefresher> iter = this.refreshers.listIterator();
+                    if (DO_DEBUG) System.out.println("Running bulk refresh for a possible " + refreshersLoadingBay.size() + " items...");
                     int refreshCount = 0;
-                    while (iter.hasNext()) {
-                        HabitualRefresher refresher = iter.next();
-                        if (refresher.needsRefresh()) {
+                    for (HabitualRefresherProfile profile : profiles) {
+                        if (profile.refresher.needsRefresh()) {
                             SwingWorker refreshWorker = new SwingWorker<Void, Void>() {
                                 @Override
                                 public Void doInBackground() {
-                                    refresher.handleRefresh();
+                                    profile.refresher.handleRefresh();
                                     return null;
                                 }
                             };
@@ -98,18 +107,41 @@ public class RefreshThread extends Thread {
         } 
     }
     
-    public static void startPause() {
-        if (PAUSE_FOR_OPERATION) {
+    private static boolean pauseRequested() {
+        waitForInit();
+        RefreshThread SINGLETON = JessAdventureCore.REFRESH_THREAD;
+        for (HabitualRefresherProfile profile : SINGLETON.profiles) {
+            if (profile.requestsPause) return true;
+        }
+        return false;
+    }
+    
+    private static HabitualRefresherProfile getProfile(HabitualRefresher claimant) {
+        waitForInit();
+        RefreshThread SINGLETON = JessAdventureCore.REFRESH_THREAD;
+        for (HabitualRefresherProfile profile : SINGLETON.profiles) {
+            if (profile.refresher == claimant) return profile;
+        }
+        throw new RuntimeException(
+                "A HabitualRefresher for "
+                        + claimant.getClass().getName()
+                        + " was not filed at start.");
+    }
+    
+    public static void startPause(HabitualRefresher claimant) {
+        HabitualRefresherProfile profile = getProfile(claimant);
+        if (profile.requestsPause) {
             // Safety check against absent-minded pause code
             throw new RuntimeException("The refresh thread is already paused; "
                     + "cannot request a second pause before the first is ended.");
         }
         waitForMe();
-        PAUSE_FOR_OPERATION = true;
+        profile.requestsPause = true;
     }
     
-    public static void endPause() {
-        if (!PAUSE_FOR_OPERATION) {
+    public static void endPause(HabitualRefresher claimant) {
+        HabitualRefresherProfile profile = getProfile(claimant);
+        if (!profile.requestsPause) {
             // Safety check against absent-minded pause code
             throw new RuntimeException("The refresh thread is already ended; "
                     + "cannot request an end-pause before one has started.");
@@ -120,7 +152,7 @@ public class RefreshThread extends Thread {
         // to interrupt them until we're absolutely sure we are done with
         // the operation.
         JessAdventureCore.REFRESH_THREAD.delta = 0;
-        PAUSE_FOR_OPERATION = false;
+        profile.requestsPause = false;
     }
     
     public static void waitForMe() {
@@ -128,6 +160,14 @@ public class RefreshThread extends Thread {
             // Just chillin' until the refresh is done...
             // Note that this will be called by an outside thread to
             // handle waiting for this one.
+        }
+        
+        // Exit wait
+    }
+    
+    private static void waitForInit() {
+        while (!INIT_COMPLETE) {
+            // Just chillin' until the thread is actually ready for action.
         }
         
         // Exit wait

@@ -25,9 +25,13 @@ package joeyproductions.jessadventurecore.ui;
 
 import java.awt.Dimension;
 import java.awt.Rectangle;
+import java.awt.Toolkit;
 import java.util.ArrayList;
 import java.util.ListIterator;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JLayeredPane;
+import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
 import javax.swing.SwingUtilities;
@@ -41,7 +45,6 @@ import javax.swing.text.html.StyleSheet;
  */
 class StoryPanel extends JTextPane implements HabitualRefresher {
     
-    private static final int MIN_WIDTH = 400;
     private static final String INDENT = "&nbsp;&nbsp;&nbsp;";
     
     private final HTMLEditorKit htmlEditorKit;
@@ -68,15 +71,22 @@ class StoryPanel extends JTextPane implements HabitualRefresher {
         storyPanel.updateStyle();
         storyPanel.setEditorKit(storyPanel.htmlEditorKit);
         
-        JScrollPane scroll = new JScrollPane(storyPanel) {
+        JPanel storyFramer = new JPanel();
+        storyFramer.setLayout(new BoxLayout(storyFramer, BoxLayout.X_AXIS));
+        storyFramer.add(Box.createHorizontalGlue());
+        storyFramer.add(storyPanel);
+        
+        JScrollPane scroll = new JScrollPane(storyFramer) {
             @Override
             public Dimension getMinimumSize() {
-                return new Dimension(MIN_WIDTH, MIN_WIDTH);
+                int min = storyPanel.getMinimumWidth();
+                return new Dimension(min, min);
             }
             
             @Override
             public Dimension getPreferredSize() {
-                return new Dimension(600, MIN_WIDTH);
+                int pref = storyPanel.getPreferredWidth();
+                return new Dimension(pref, pref);
             }
             
             @Override
@@ -203,12 +213,12 @@ class StoryPanel extends JTextPane implements HabitualRefresher {
     private void startPause() {
         // This method is mostly here to maintain consistency between the
         // starts and ends of refresh pauses.
-        RefreshThread.startPause();
+        RefreshThread.startPause(this);
     }
     
     private void endPause() {
         needsRefresh = true;
-        RefreshThread.endPause();
+        RefreshThread.endPause(this);
     }
     
     void append(String content) {
@@ -255,5 +265,32 @@ class StoryPanel extends JTextPane implements HabitualRefresher {
         lines.clear();
         
         endPause();
+    }
+    
+    private int getMinimumWidth() {
+        return Math.round((float)Toolkit.getDefaultToolkit()
+                .getScreenSize().height * (2f / 5f));
+    }
+    
+    private int getPreferredWidth() {
+        int screenRatio = Math.round((float)Toolkit.getDefaultToolkit()
+                .getScreenSize().height * (3f / 5f));
+        return Math.min(layeredParent.getWidth(), screenRatio);
+    }
+    
+    @Override
+    public Dimension getMinimumSize() {
+        int min = getMinimumWidth();
+        return new Dimension(min, min);
+    }
+    
+    @Override
+    public Dimension getPreferredSize() {
+        return new Dimension(getPreferredWidth(), super.getPreferredSize().height);
+    }
+    
+    @Override
+    public Dimension getMaximumSize() {
+        return new Dimension(getPreferredWidth(), super.getMaximumSize().height);
     }
 }

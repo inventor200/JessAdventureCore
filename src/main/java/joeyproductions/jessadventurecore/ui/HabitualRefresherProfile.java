@@ -24,11 +24,16 @@
 package joeyproductions.jessadventurecore.ui;
 
 /**
- * An interface for things that check for bulk-refresh tasks at some FPS.
+ * A class for linking habitual refreshers with a pause request status.
  * @author Joseph Cramsey
  */
-public interface HabitualRefresher {
+class HabitualRefresherProfile {
     
-    public boolean needsRefresh();
-    public void handleRefresh();
+    HabitualRefresher refresher;
+    boolean requestsPause;
+
+    HabitualRefresherProfile(HabitualRefresher refresher) {
+        this.refresher = refresher;
+        this.requestsPause = false;
+    }
 }
