@@ -37,6 +37,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
+import java.util.Collections;
 import javax.swing.AbstractAction;
 import javax.swing.ActionMap;
 import javax.swing.BorderFactory;
@@ -85,7 +86,7 @@ class PlayerPrompt implements HabitualRefresher {
     private int autocompleteLeftOffset;
     private boolean needsNewSuggestions = true;
     private boolean shouldBeVisible = false;
-    private ArrayList<String> cachedSuggestions = new ArrayList<>();
+    private ArrayList<SortableSuggestion> cachedSuggestions = new ArrayList<>();
     
     private String[] testSuggestions = new String[] {
         "look at",
@@ -356,19 +357,33 @@ class PlayerPrompt implements HabitualRefresher {
         shouldBeVisible = !(workingWord.str.equals(""));
         
         if (shouldBeVisible) {
-            String status = "Working word: |" + workingWord.str + "|";
+            //String status = "Working word: |" + workingWord.str + "|";
             //System.out.println(Integer.toString(workingWord.caretPosition) + " of " + Integer.toString(cachedInputString.length()));
             
             headerString = cachedInputString.substring(0, workingWord.caretPosition);
+            
+            //TODO: Get context object to narrow down possible suggestions
 
-            cachedSuggestions.add(status);
+            if (workingWord.str.equals(" ")) {
+                getSuggestionsFromContext();
+            }
+            else {
+                getSuggestionsFromContextAndInput(workingWord.str);
+            }
+            
+            Collections.sort(cachedSuggestions, (x, y) -> Float.compare(x.score, y.score));
+            while (cachedSuggestions.size() > 5) {
+                cachedSuggestions.remove(0);
+            }
+            
+            shouldBeVisible = cachedSuggestions.size() > 0;
         }
         
         SwingUtilities.invokeLater(() -> {
             suggestionList.removeAll();
             
-            for (String suggestion : cachedSuggestions) {
-                suggestionList.add(new JLabel(suggestion));
+            for (SortableSuggestion suggestion : cachedSuggestions) {
+                suggestionList.add(new JLabel(suggestion.toString()));
             }
             
             FontMetrics metrics = textField.getFontMetrics(textField.getFont());
@@ -380,6 +395,61 @@ class PlayerPrompt implements HabitualRefresher {
             autocompleteSuggestionPanel.validate();
             autocompleteSuggestionPanel.repaint();
         });
+    }
+    
+    private void getSuggestionsFromContext() {
+        //TODO
+    }
+    
+    private void getSuggestionsFromContextAndInput(String workingInput) {
+        for (String testSuggestion : testSuggestions) {
+            String matchingString = testSuggestion; //TODO: Suggestions can have multiple matching strings
+            float matchingFactor = 1; //TODO: Suggestion matching strings can have individual biases
+            
+            if (workingInput.length() > matchingString.length()) {
+                // If we're already typing past the word, then don't
+                // suggest it
+                continue;
+            }
+
+            float bestScore = -1;
+
+            int smallerLength = workingInput.length();
+            int lengthDiff = matchingString.length() - smallerLength;
+
+            // Match partial words too
+            for (int i = 0; i <= lengthDiff; i++) {
+                String fragment = matchingString.substring(i, smallerLength + i);
+                int charMatches = 0;
+                for (int j = 0; j < smallerLength; j++) {
+                    if (workingInput.charAt(j) == fragment.charAt(j)) {
+                        charMatches++;
+                    }
+                }
+
+                if (charMatches == 0) {
+                    // Do not interact with no-match suggestions.
+                    continue;
+                }
+
+                /*
+                We want to prioritize more exact matches, as well as matches
+                to the immediate start of the suggestion word.
+                */
+                float shiftPenalty = (float)(i * i * 100) / (float)(lengthDiff + 1);
+                float score = (float)(charMatches * matchingFactor)
+                        / (shiftPenalty + (float)lengthDiff);
+
+                if (score > bestScore) bestScore = score;
+            }
+
+            if (bestScore > Float.MIN_NORMAL * 2) {
+                // Do not accept irrelevant suggestions
+                cachedSuggestions.add(
+                        new SortableSuggestion(testSuggestion, bestScore)
+                );
+            }
+        }
     }
     
     private void handleAutocomplete() {
