@@ -67,8 +67,7 @@ public class RefreshThread extends Thread {
         currentTime = 0;
     }
     
-    @Override
-    public void run() {
+    public void initialize() {
         profiles = new HabitualRefresherProfile[refreshersLoadingBay.size()];
         for (int i = 0; i < profiles.length; i++) {
             profiles[i] = new HabitualRefresherProfile(refreshersLoadingBay.get(i));
@@ -76,6 +75,10 @@ public class RefreshThread extends Thread {
         
         lastTime = System.nanoTime();
         INIT_COMPLETE = true;
+    }
+    
+    @Override
+    public void run() {
         while (true) {
             if (!pauseRequested()) {
                 currentTime = System.nanoTime();
@@ -126,7 +129,7 @@ public class RefreshThread extends Thread {
     }
     
     public static void startPause(HabitualRefresher claimant) {
-        if (!INIT_COMPLETE) return; // Bail before init
+        checkForInit();
         HabitualRefresherProfile profile = getProfile(claimant);
         if (profile.requestsPause) {
             // Safety check against absent-minded pause code
@@ -138,7 +141,7 @@ public class RefreshThread extends Thread {
     }
     
     public static void endPause(HabitualRefresher claimant) {
-        if (!INIT_COMPLETE) return; // Bail before init
+        checkForInit();
         HabitualRefresherProfile profile = getProfile(claimant);
         if (!profile.requestsPause) {
             // Safety check against absent-minded pause code
@@ -155,7 +158,7 @@ public class RefreshThread extends Thread {
     }
     
     public static void waitForMe() {
-        if (!INIT_COMPLETE) return; // Bail before init
+        checkForInit();
         while (REFRESH_IN_PROGRESS) {
             // Just chillin' until the refresh is done...
             // Note that this will be called by an outside thread to
@@ -163,5 +166,11 @@ public class RefreshThread extends Thread {
         }
         
         // Exit wait
+    }
+    
+    private static void checkForInit() {
+        if (!INIT_COMPLETE) {
+            throw new RuntimeException("The refresh thread has no initialized yet!");
+        }
     }
 }

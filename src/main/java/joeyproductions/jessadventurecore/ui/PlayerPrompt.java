@@ -244,6 +244,7 @@ class PlayerPrompt implements HabitualRefresher {
                 return getBounds(new Rectangle());
             }
         };
+        autocompleteSuggestionPanel.setOpaque(false);
         autocompleteSuggestionPanel.setLayout(new BoxLayout(autocompleteSuggestionPanel, BoxLayout.X_AXIS));
         suggestionShifter = new Component() {
             @Override
@@ -268,6 +269,7 @@ class PlayerPrompt implements HabitualRefresher {
         autocompleteSuggestionPanel.add(suggestionShifter);
         
         JPanel suggestionAlignerY = new JPanel();
+        suggestionAlignerY.setOpaque(false);
         suggestionAlignerY.setLayout(new BoxLayout(suggestionAlignerY, BoxLayout.Y_AXIS));
         suggestionAlignerY.add(Box.createVerticalGlue());
         suggestionAlignerY.add(suggestionCorePanel);

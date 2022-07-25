@@ -300,6 +300,7 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
             core.frame.setLocationRelativeTo(null);
             
             System.out.println("Starting refresh thread...");
+            REFRESH_THREAD.initialize();
             REFRESH_THREAD.start();
             System.out.println("Batch refresh thread has started!");
             
