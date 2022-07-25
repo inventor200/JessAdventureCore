@@ -36,6 +36,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFrame;
@@ -213,12 +214,18 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
             core.layers.add(storyPanelPair.scrollPane, JLayeredPane.DEFAULT_LAYER);
             core.layers.add(core.playerPrompt.autocompleteSuggestionPanel, JLayeredPane.POPUP_LAYER);
             
+            JPanel roomLabelPanel = new JPanel();
+            roomLabelPanel.setLayout(new BoxLayout(roomLabelPanel, BoxLayout.X_AXIS));
+            roomLabelPanel.add(Box.createHorizontalGlue());
+            
             core.roomLabel = new JLabel("Demo Room Name");
             core.roomLabel.setBorder(BorderFactory.createEmptyBorder(
                     8, 16, 4, 16
             ));
             core.roomLabel.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 18));
-            core.storyColumn.add(core.roomLabel, BorderLayout.NORTH);
+            roomLabelPanel.add(core.roomLabel);
+            core.storyColumn.add(roomLabelPanel, BorderLayout.NORTH);
+            
             core.storyColumn.add(core.playerPrompt.buttonList, BorderLayout.SOUTH);
             
             core.mapColumn = new JPanel() {

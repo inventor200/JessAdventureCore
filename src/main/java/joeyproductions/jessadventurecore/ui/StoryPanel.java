@@ -77,7 +77,7 @@ class StoryPanel extends JTextPane implements HabitualRefresher {
         storyFramer.add(storyPanel);
         
         JScrollPane scroll = new JScrollPane(storyFramer) {
-            @Override
+            /*@Override
             public Dimension getMinimumSize() {
                 int min = storyPanel.getMinimumWidth();
                 return new Dimension(min, min);
@@ -87,7 +87,7 @@ class StoryPanel extends JTextPane implements HabitualRefresher {
             public Dimension getPreferredSize() {
                 int pref = storyPanel.getPreferredWidth();
                 return new Dimension(pref, pref);
-            }
+            }*/
             
             @Override
             public Rectangle getBounds(Rectangle temp) {

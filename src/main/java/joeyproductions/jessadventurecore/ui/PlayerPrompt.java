@@ -26,20 +26,36 @@ package joeyproductions.jessadventurecore.ui;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
 import java.awt.GridLayout;
 import java.awt.Rectangle;
+import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import java.util.ArrayList;
+import javax.swing.AbstractAction;
+import javax.swing.ActionMap;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.InputMap;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JLayeredPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.event.CaretEvent;
+import javax.swing.event.CaretListener;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 /**
  * A UI component for typing out the prompt, and offering auto-complete.
@@ -55,13 +71,37 @@ class PlayerPrompt implements HabitualRefresher {
     final JPanel buttonList;
     private final JPanel inputPanel;
     private final JPanel suggestionList;
+    private final JPanel suggestionCorePanel;
+    private final Component suggestionShifter;
     private final JLayeredPane layeredParent;
     private final ActionListener actionListener;
     private final StoryPanelBuffer storyPanelBuffer;
     private final JPanel pressToContinueButtonResizer;
     
-    private boolean needsNewSuggestions = false;
-    private int autocompleteLeftOffset = 32;
+    // Various stuff for thread-safe operation
+    private String cachedInputString = "";
+    private int cachedInputCaretPosition = 0;
+    private String headerString = "";
+    private int autocompleteLeftOffset;
+    private boolean needsNewSuggestions = true;
+    private boolean shouldBeVisible = false;
+    private ArrayList<String> cachedSuggestions = new ArrayList<>();
+    
+    private String[] testSuggestions = new String[] {
+        "look at",
+        "examine",
+        "lamp",
+        "get",
+        "floor",
+        "hang",
+        "take",
+        "drop",
+        "ball",
+        "shelf",
+        "box",
+        "window",
+        "inventory"
+    };
     
     private class FocusPair {
         
@@ -83,9 +123,41 @@ class PlayerPrompt implements HabitualRefresher {
         this.actionListener = actionListener;
         this.layeredParent = layeredParent;
         
-        PlayerPrompt _this = this;
-        
         textField = new JTextField();
+        textField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                prepareForSuggestions();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                prepareForSuggestions();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                prepareForSuggestions();
+            }
+        });
+        textField.setFocusTraversalKeysEnabled(false);
+        
+        textField.addCaretListener((CaretEvent e) -> {
+            if (!needsNewSuggestions) {
+                prepareForSuggestions();
+            }
+        });
+        
+        InputMap tabInputMap = textField.getInputMap(JComponent.WHEN_FOCUSED);
+        ActionMap tabActionMap = textField.getActionMap();
+        tabInputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, 0), "tab");
+        tabActionMap.put("tab", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleAutocomplete();
+            }
+        });
+        
         JLabel marker = new JLabel(" > ");
         inputPanel = new JPanel();
         inputPanel.setLayout(new BoxLayout(inputPanel, BoxLayout.X_AXIS));
@@ -110,32 +182,26 @@ class PlayerPrompt implements HabitualRefresher {
         JPanel helpLines = new JPanel(new GridLayout(0, 1));
         int helpSeparation = 4;
         
-        autocompleteSuggestionPanel = new JPanel() {
+        suggestionCorePanel = new JPanel() {
             @Override
-            public Rectangle getBounds(Rectangle temp) {
-                int height = suggestionList.getPreferredSize().height
-                        + (SUGGESTION_PAD * 2)
-                        + helpLines.getHeight()
-                        + helpSeparation;
-                int parentHeight = _this.layeredParent.getHeight();
-                
-                temp.x = _this.autocompleteLeftOffset; //TODO: offset according to input string
-                temp.y = parentHeight - height;
-                //temp.width = _this.layeredParent.getWidth();
-                temp.width = getPreferredSize().width;
-                temp.height = height;
-                return temp;
+            public Dimension getMinimumSize() {
+                return getPreferredSize();
             }
             
             @Override
-            public Rectangle getBounds() {
-                return getBounds(new Rectangle());
+            public Dimension getMaximumSize() {
+                return getPreferredSize();
+            }
+            
+            @Override
+            public boolean isVisible() {
+                return shouldBeVisible;
             }
         };
-        autocompleteSuggestionPanel.setLayout(
-                new BoxLayout(autocompleteSuggestionPanel, BoxLayout.Y_AXIS)
+        suggestionCorePanel.setLayout(
+                new BoxLayout(suggestionCorePanel, BoxLayout.Y_AXIS)
         );
-        autocompleteSuggestionPanel.setBorder(
+        suggestionCorePanel.setBorder(
                 BorderFactory.createCompoundBorder(
                         BorderFactory.createLineBorder(Color.BLACK),
                         BorderFactory.createEmptyBorder(
@@ -146,7 +212,7 @@ class PlayerPrompt implements HabitualRefresher {
         );
         
         JLabel selectHelp1 = new JLabel("Up / Down arrows");
-        JLabel selectHelp2 = new JLabel("Enter key to select");
+        JLabel selectHelp2 = new JLabel("Tab to select");
         Font normalFont = selectHelp1.getFont();
         int helpSize = Math.round(10f * JessAdventureCore.FONT_SIZE_MULTIPLIER);
         if (helpSize < 4) helpSize = 4;
@@ -155,20 +221,59 @@ class PlayerPrompt implements HabitualRefresher {
         selectHelp2.setFont(tinyFont);
         helpLines.add(selectHelp1);
         helpLines.add(selectHelp2);
-        autocompleteSuggestionPanel.add(helpLines);
-        autocompleteSuggestionPanel.add(Box.createVerticalStrut(helpSeparation));
+        suggestionCorePanel.add(helpLines);
+        suggestionCorePanel.add(Box.createVerticalStrut(helpSeparation));
         
         JPanel suggestionListResizer = new JPanel(new BorderLayout());
         suggestionList = new JPanel(new GridLayout(0, 1));
         suggestionListResizer.add(suggestionList, BorderLayout.PAGE_START);
-        autocompleteSuggestionPanel.add(suggestionListResizer);
+        suggestionCorePanel.add(suggestionListResizer);
         
-        //Test
-        suggestionList.add(new JLabel("Suggestion 1"));
-        suggestionList.add(new JLabel("Suggestion 2"));
-        suggestionList.add(new JLabel("Suggestion 3"));
-        suggestionList.add(new JLabel("Suggestion 4"));
-        suggestionList.add(new JLabel("Suggestion 5"));
+        autocompleteSuggestionPanel = new JPanel() {
+            @Override
+            public Rectangle getBounds(Rectangle temp) {
+                temp.x = 0;
+                temp.y = 0;
+                temp.width = layeredParent.getWidth();
+                temp.height = layeredParent.getHeight();
+                return temp;
+            }
+            
+            @Override
+            public Rectangle getBounds() {
+                return getBounds(new Rectangle());
+            }
+        };
+        autocompleteSuggestionPanel.setLayout(new BoxLayout(autocompleteSuggestionPanel, BoxLayout.X_AXIS));
+        suggestionShifter = new Component() {
+            @Override
+            public Dimension getPreferredSize() {
+                int maxWidth = layeredParent.getWidth();
+                int suggestionWidth = suggestionCorePanel.getPreferredSize().width;
+                int maxOffset = maxWidth - suggestionWidth;
+                int actualOffset = Math.min(maxOffset, autocompleteLeftOffset);
+                return new Dimension(actualOffset, layeredParent.getHeight());
+            }
+            
+            @Override
+            public Dimension getMinimumSize() {
+                return getPreferredSize();
+            }
+            
+            @Override
+            public Dimension getMaximumSize() {
+                return getPreferredSize();
+            }
+        };
+        autocompleteSuggestionPanel.add(suggestionShifter);
+        
+        JPanel suggestionAlignerY = new JPanel();
+        suggestionAlignerY.setLayout(new BoxLayout(suggestionAlignerY, BoxLayout.Y_AXIS));
+        suggestionAlignerY.add(Box.createVerticalGlue());
+        suggestionAlignerY.add(suggestionCorePanel);
+        
+        autocompleteSuggestionPanel.add(suggestionAlignerY);
+        autocompleteSuggestionPanel.add(Box.createHorizontalGlue());
     }
     
     void rearrange() {
@@ -222,6 +327,16 @@ class PlayerPrompt implements HabitualRefresher {
         buttonList.revalidate();
         buttonList.repaint();
     }
+    
+    private void prepareForSuggestions() {
+        RefreshThread.startPause(this);
+        
+        cachedInputString = textField.getText();
+        cachedInputCaretPosition = textField.getCaretPosition();
+        
+        needsNewSuggestions = true;
+        RefreshThread.endPause(this);
+    }
 
     @Override
     public boolean needsRefresh() {
@@ -231,6 +346,203 @@ class PlayerPrompt implements HabitualRefresher {
     @Override
     public void handleRefresh() {
         needsNewSuggestions = false;
+        shouldBeVisible = false; //TODO: Make false if there's no suggestions
+        cachedSuggestions.clear();
+        
+        //TODO: Evaluate suggestions
+        StringCaretPair workingWord = getWorkingWord();
+        shouldBeVisible = !(workingWord.str.equals(""));
+        
+        if (shouldBeVisible) {
+            String status = "Working word: |" + workingWord.str + "|";
+            //System.out.println(Integer.toString(workingWord.caretPosition) + " of " + Integer.toString(cachedInputString.length()));
+            
+            headerString = cachedInputString.substring(0, workingWord.caretPosition);
+
+            cachedSuggestions.add(status);
+        }
+        
+        SwingUtilities.invokeLater(() -> {
+            suggestionList.removeAll();
+            
+            for (String suggestion : cachedSuggestions) {
+                suggestionList.add(new JLabel(suggestion));
+            }
+            
+            FontMetrics metrics = textField.getFontMetrics(textField.getFont());
+            int offsetWithinBox = metrics.stringWidth(headerString);
+            int offsetWithinPanel = textField.getLocation().x;
+            autocompleteLeftOffset = offsetWithinBox + offsetWithinPanel;
+            
+            autocompleteSuggestionPanel.invalidate();
+            autocompleteSuggestionPanel.validate();
+            autocompleteSuggestionPanel.repaint();
+        });
+    }
+    
+    private void handleAutocomplete() {
         //TODO
+    }
+    
+    private StringCaretPair getSterileInput() {
+        String str = cachedInputString;
+        int caretPosition = cachedInputCaretPosition;
+        
+        String buffer = "";
+        boolean wasLastCharASpace = true; // Will crop leading spaces
+        
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
+            boolean isSpace = Character.isWhitespace(c);
+            // spaceGate: Keeps repetition of spaces out of input
+            boolean spaceGate = (!wasLastCharASpace && isSpace) || !isSpace;
+            if (isValidInputCharacter(c) && spaceGate) {
+                buffer += c;
+            }
+            else if (i < caretPosition) {
+                // Move the caret back, as we cropped a char away behind it
+                caretPosition--;
+            }
+            wasLastCharASpace = isSpace;
+        }
+        
+        if (buffer.isBlank()) {
+            return new StringCaretPair("", 0);
+        }
+        
+        return new StringCaretPair(buffer, caretPosition);
+    }
+    
+    private StringCaretPair getWorkingWord(StringCaretPair sterileInput) {
+        String str = sterileInput.str;
+        int originalCaret = cachedInputCaretPosition;
+        
+        if (str.isBlank()) {
+            return new StringCaretPair("", 0); // Indicates no input
+        }
+        
+        // Any cases after this will probably have a word...
+        
+        int caretIndex = sterileInput.caretPosition;
+        
+        if (str.endsWith(" ") && caretIndex == str.length()) {
+            return new StringCaretPair(" ", originalCaret); // Indicates a new word, not yet entered
+        }
+        
+        int firstIndex = caretIndex;
+        int lastIndex = caretIndex;
+        
+        // Find the start of the word
+        for (int i = caretIndex; i >= 0; i--) {
+            firstIndex = i;
+            if (i < str.length()) {
+                char c = str.charAt(i);
+                if (Character.isWhitespace(c) || i < 0) {
+                    if (i < str.length() - 1) i++;
+                    firstIndex = i;
+                    break;
+                }
+            }
+        }
+        
+        // Find the end of the word
+        for (int i = caretIndex; i < str.length(); i++) {
+            lastIndex = i;
+            char c = str.charAt(i);
+            if (Character.isWhitespace(c)) {
+                if (i > 0 && i > firstIndex) i--;
+                lastIndex = i;
+                break;
+            }
+        }
+        lastIndex++;
+        
+        int wordStart = originalCaret
+                + (firstIndex - caretIndex);
+        
+        if (wordStart < 0) {
+            wordStart = 0;
+        }
+        if (wordStart >= cachedInputString.length()) {
+            wordStart = cachedInputString.length() - 1;
+        }
+        
+        return new StringCaretPair(str.substring(firstIndex, lastIndex), wordStart);
+    }
+    
+    private StringCaretPair getWorkingWord() {
+        return getWorkingWord(getSterileInput());
+    }
+    
+    private static boolean isValidInputCharacter(char c) {
+        switch (c) {
+            default:
+                return false;
+            case ' ':
+            case 'a':
+            case 'b':
+            case 'c':
+            case 'd':
+            case 'e':
+            case 'f':
+            case 'g':
+            case 'h':
+            case 'i':
+            case 'j':
+            case 'k':
+            case 'l':
+            case 'm':
+            case 'n':
+            case 'o':
+            case 'p':
+            case 'q':
+            case 'r':
+            case 's':
+            case 't':
+            case 'u':
+            case 'v':
+            case 'w':
+            case 'x':
+            case 'y':
+            case 'z':
+            case 'A':
+            case 'B':
+            case 'C':
+            case 'D':
+            case 'E':
+            case 'F':
+            case 'G':
+            case 'H':
+            case 'I':
+            case 'J':
+            case 'K':
+            case 'L':
+            case 'M':
+            case 'N':
+            case 'O':
+            case 'P':
+            case 'Q':
+            case 'R':
+            case 'S':
+            case 'T':
+            case 'U':
+            case 'V':
+            case 'W':
+            case 'X':
+            case 'Y':
+            case 'Z':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+            case '0':
+            case '\'':
+                return true;
+        }
     }
 }

@@ -24,7 +24,6 @@
 package joeyproductions.jessadventurecore.ui;
 
 import java.util.ArrayList;
-import java.util.ListIterator;
 import javax.swing.SwingWorker;
 
 /**
@@ -108,7 +107,6 @@ public class RefreshThread extends Thread {
     }
     
     private static boolean pauseRequested() {
-        waitForInit();
         RefreshThread SINGLETON = JessAdventureCore.REFRESH_THREAD;
         for (HabitualRefresherProfile profile : SINGLETON.profiles) {
             if (profile.requestsPause) return true;
@@ -117,7 +115,6 @@ public class RefreshThread extends Thread {
     }
     
     private static HabitualRefresherProfile getProfile(HabitualRefresher claimant) {
-        waitForInit();
         RefreshThread SINGLETON = JessAdventureCore.REFRESH_THREAD;
         for (HabitualRefresherProfile profile : SINGLETON.profiles) {
             if (profile.refresher == claimant) return profile;
@@ -129,6 +126,7 @@ public class RefreshThread extends Thread {
     }
     
     public static void startPause(HabitualRefresher claimant) {
+        if (!INIT_COMPLETE) return; // Bail before init
         HabitualRefresherProfile profile = getProfile(claimant);
         if (profile.requestsPause) {
             // Safety check against absent-minded pause code
@@ -140,6 +138,7 @@ public class RefreshThread extends Thread {
     }
     
     public static void endPause(HabitualRefresher claimant) {
+        if (!INIT_COMPLETE) return; // Bail before init
         HabitualRefresherProfile profile = getProfile(claimant);
         if (!profile.requestsPause) {
             // Safety check against absent-minded pause code
@@ -156,18 +155,11 @@ public class RefreshThread extends Thread {
     }
     
     public static void waitForMe() {
+        if (!INIT_COMPLETE) return; // Bail before init
         while (REFRESH_IN_PROGRESS) {
             // Just chillin' until the refresh is done...
             // Note that this will be called by an outside thread to
             // handle waiting for this one.
-        }
-        
-        // Exit wait
-    }
-    
-    private static void waitForInit() {
-        while (!INIT_COMPLETE) {
-            // Just chillin' until the thread is actually ready for action.
         }
         
         // Exit wait
