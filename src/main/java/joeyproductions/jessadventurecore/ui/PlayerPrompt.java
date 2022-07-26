@@ -83,10 +83,11 @@ class PlayerPrompt implements HabitualRefresher {
     private String cachedInputString = "";
     private int cachedInputCaretPosition = 0;
     private String headerString = "";
+    private final int[] workingIndices = new int[] { 0, 0 };
     private int autocompleteLeftOffset;
     private boolean needsNewSuggestions = true;
     private boolean shouldBeVisible = false;
-    private ArrayList<SortableSuggestion> cachedSuggestions = new ArrayList<>();
+    private final ArrayList<SortableSuggestion> cachedSuggestions = new ArrayList<>();
     
     private String[] testSuggestions = new String[] {
         "look at",
@@ -352,23 +353,21 @@ class PlayerPrompt implements HabitualRefresher {
         shouldBeVisible = false; //TODO: Make false if there's no suggestions
         cachedSuggestions.clear();
         
-        //TODO: Evaluate suggestions
-        StringCaretPair workingWord = getWorkingWord();
+        StringCaretPair sterileInput = getSterileInput();
+        getWorkingIndices(sterileInput, workingIndices);
+        StringCaretPair workingWord = getWorkingWord(sterileInput, workingIndices);
         shouldBeVisible = !(workingWord.str.equals(""));
         
         if (shouldBeVisible) {
-            //String status = "Working word: |" + workingWord.str + "|";
-            //System.out.println(Integer.toString(workingWord.caretPosition) + " of " + Integer.toString(cachedInputString.length()));
-            
             headerString = cachedInputString.substring(0, workingWord.caretPosition);
             
-            //TODO: Get context object to narrow down possible suggestions
+            PromptContext contextObject = new PromptContext(sterileInput, workingIndices);
 
             if (workingWord.str.equals(" ")) {
-                getSuggestionsFromContext();
+                getSuggestionsFromContext(contextObject);
             }
             else {
-                getSuggestionsFromContextAndInput(workingWord.str);
+                getSuggestionsFromContextAndInput(contextObject, workingWord.str);
             }
             
             Collections.sort(cachedSuggestions, (x, y) -> Float.compare(x.score, y.score));
@@ -397,11 +396,11 @@ class PlayerPrompt implements HabitualRefresher {
         });
     }
     
-    private void getSuggestionsFromContext() {
+    private void getSuggestionsFromContext(PromptContext contextObject) {
         //TODO
     }
     
-    private void getSuggestionsFromContextAndInput(String workingInput) {
+    private void getSuggestionsFromContextAndInput(PromptContext contextObject, String workingInput) {
         for (String testSuggestion : testSuggestions) {
             String matchingString = testSuggestion; //TODO: Suggestions can have multiple matching strings
             float matchingFactor = 1; //TODO: Suggestion matching strings can have individual biases
@@ -485,20 +484,21 @@ class PlayerPrompt implements HabitualRefresher {
         return new StringCaretPair(buffer, caretPosition);
     }
     
-    private StringCaretPair getWorkingWord(StringCaretPair sterileInput) {
-        String str = sterileInput.str;
-        int originalCaret = cachedInputCaretPosition;
-        
-        if (str.isBlank()) {
-            return new StringCaretPair("", 0); // Indicates no input
+    private static void getWorkingIndices(StringCaretPair sterileInput, int[] buffer) {
+        if (buffer == null) {
+            throw new RuntimeException("Index buffer is null!");
+        }
+        if (buffer.length != 2) {
+            throw new RuntimeException("Index buffer is not of length 2!");
         }
         
-        // Any cases after this will probably have a word...
-        
+        String str = sterileInput.str;
         int caretIndex = sterileInput.caretPosition;
         
         if (str.endsWith(" ") && caretIndex == str.length()) {
-            return new StringCaretPair(" ", originalCaret); // Indicates a new word, not yet entered
+            buffer[0] = str.length() - 1;
+            buffer[1] = str.length();
+            return;
         }
         
         int firstIndex = caretIndex;
@@ -529,6 +529,28 @@ class PlayerPrompt implements HabitualRefresher {
         }
         lastIndex++;
         
+        buffer[0] = firstIndex;
+        buffer[1] = lastIndex;
+    }
+    
+    private StringCaretPair getWorkingWord(StringCaretPair sterileInput, int[] workingIndices) {
+        String str = sterileInput.str;
+        int originalCaret = cachedInputCaretPosition;
+        
+        if (str.isBlank()) {
+            return new StringCaretPair("", 0); // Indicates no input
+        }
+        
+        // Any cases after this will probably have a word...
+        int caretIndex = sterileInput.caretPosition;
+        
+        if (str.endsWith(" ") && caretIndex == str.length()) {
+            return new StringCaretPair(" ", originalCaret); // Indicates a new word, not yet entered
+        }
+        
+        int firstIndex = workingIndices[0];
+        int lastIndex = workingIndices[1];
+        
         int wordStart = originalCaret
                 + (firstIndex - caretIndex);
         
@@ -540,10 +562,6 @@ class PlayerPrompt implements HabitualRefresher {
         }
         
         return new StringCaretPair(str.substring(firstIndex, lastIndex), wordStart);
-    }
-    
-    private StringCaretPair getWorkingWord() {
-        return getWorkingWord(getSterileInput());
     }
     
     private static boolean isValidInputCharacter(char c) {
