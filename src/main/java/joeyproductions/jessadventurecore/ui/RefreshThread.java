@@ -93,7 +93,11 @@ public class RefreshThread extends Thread {
                             SwingWorker refreshWorker = new SwingWorker<Void, Void>() {
                                 @Override
                                 public Void doInBackground() {
-                                    profile.refresher.handleRefresh();
+                                    try {
+                                        profile.refresher.handleRefresh();
+                                    } catch (Exception ex) {
+                                        ex.printStackTrace(System.err);
+                                    }
                                     return null;
                                 }
                             };
