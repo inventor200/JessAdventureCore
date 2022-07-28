@@ -51,6 +51,7 @@ import javax.swing.JScrollPane;
 import javax.swing.MenuSelectionManager;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
+import joeyproductions.jessadventurecore.world.World;
 
 /**
  * The core interface for the adventure.
@@ -122,6 +123,7 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
     public static RefreshThread REFRESH_THREAD;
     String name;
     String author;
+    public final World world;
     private JFrame frame;
     private JLabel roomLabel;
     private JPanel storyColumn;
@@ -142,18 +144,19 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
     
     private JPanel mapColumn;
     
-    private JessAdventureCore(String name, String author) {
+    private JessAdventureCore(String name, String author, World world) {
         this.name = name;
         this.author = author;
+        this.world = world;
         this.storyPanelBuffer = new StoryPanelBuffer();
         this.performedFirstScroll = false;
         this.somethingWasPosted = false;
         this.promptHasChanged = false;
     }
     
-    public static void initAdventure(String name, String author) {
+    public static void initAdventure(String name, String author, World world) {
         System.out.println("Beginning adventure: " + name + " by " + author + "...");
-        JessAdventureCore core = new JessAdventureCore(name, author);
+        JessAdventureCore core = new JessAdventureCore(name, author, world);
         
         ArrayList<HabitualRefresher> refreshers = new ArrayList<>();
         REFRESH_THREAD = new RefreshThread(refreshers);
@@ -314,7 +317,10 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
     private void postUIInit() {
         System.out.println("Doing post-UI initialization...");
         
-        //TODO: Set up the world state
+        if (world == null) {
+            throw new RuntimeException("World cannot be null!");
+        }
+        world.prestartWorld();
         
         appendParagraph("Testing first paragraph.");
         appendParagraph("Testing second paragraph.");
@@ -506,6 +512,102 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
             darkModeItem.setState(DARK_MODE);
             //MenuSelectionManager.defaultManager().clearSelectedPath();
             updateStyle();
+        }
+    }
+    
+    public static String validateString(String str) {
+        if (!isValidString(str)) {
+            throw new RuntimeException("String \"" + str + "\" is not player-typable!");
+        }
+        return str;
+    }
+    
+    public static boolean isValidString(String str) { //TODO: Make an iterator out of this, and reuse is PlayerPrompt.getSterileInput()
+        boolean wasLastCharASpace = true; // Will invalidate leading spaces
+        
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
+            boolean isSpace = Character.isWhitespace(c);
+            // spaceGate: Forbids repetition of spaces
+            boolean spaceGate = (!wasLastCharASpace && isSpace) || !isSpace;
+            if (!(isValidInputCharacter(c) && spaceGate)) {
+                return false;
+            }
+            wasLastCharASpace = isSpace;
+        }
+        return true;
+    }
+    
+    public static boolean isValidInputCharacter(char c) {
+        switch (c) {
+            default:
+                return false;
+            case ' ':
+            case 'a':
+            case 'b':
+            case 'c':
+            case 'd':
+            case 'e':
+            case 'f':
+            case 'g':
+            case 'h':
+            case 'i':
+            case 'j':
+            case 'k':
+            case 'l':
+            case 'm':
+            case 'n':
+            case 'o':
+            case 'p':
+            case 'q':
+            case 'r':
+            case 's':
+            case 't':
+            case 'u':
+            case 'v':
+            case 'w':
+            case 'x':
+            case 'y':
+            case 'z':
+            case 'A':
+            case 'B':
+            case 'C':
+            case 'D':
+            case 'E':
+            case 'F':
+            case 'G':
+            case 'H':
+            case 'I':
+            case 'J':
+            case 'K':
+            case 'L':
+            case 'M':
+            case 'N':
+            case 'O':
+            case 'P':
+            case 'Q':
+            case 'R':
+            case 'S':
+            case 'T':
+            case 'U':
+            case 'V':
+            case 'W':
+            case 'X':
+            case 'Y':
+            case 'Z':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+            case '0':
+            case '\'':
+            case '-':
+                return true;
         }
     }
 }

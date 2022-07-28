@@ -24,6 +24,9 @@
 package joeyproductions.testgame;
 
 import joeyproductions.jessadventurecore.ui.JessAdventureCore;
+import joeyproductions.jessadventurecore.world.Noun;
+import joeyproductions.jessadventurecore.world.Verb;
+import joeyproductions.jessadventurecore.world.World;
 
 /**
  * This is just a test game to experiment with the adventure system.
@@ -34,7 +37,30 @@ public class TestGame {
     public static JessAdventureCore ADV;
     
     public static void main(String[] args) {
-        JessAdventureCore.initAdventure("Test Game", "Joseph Cramsey");
+        World testWorld = World.createWorld();
+        
+        testWorld.verbs.add(new Verb(
+                "examine", new String[] {
+                    "look at",
+                    "inspect"
+                }, "x"
+        ));
+        testWorld.verbs.add(new Verb("take"));
+        
+        testWorld.nouns.add(new Noun(
+                "bucket", "pale", "red", "sandy", "plastic"
+        ));
+        testWorld.nouns.add(new Noun(
+                "bucket", "blue", "clean", "plastic"
+        ));
+        testWorld.nouns.add(new Noun(
+                "candy", "red"
+        ));
+        testWorld.nouns.add(new Noun(
+                "bucket", "small", "pale", "red", "plastic"
+        ));
+        
+        JessAdventureCore.initAdventure("Test Game", "Joseph Cramsey", testWorld);
         ADV = JessAdventureCore.CORE;
     }
 }

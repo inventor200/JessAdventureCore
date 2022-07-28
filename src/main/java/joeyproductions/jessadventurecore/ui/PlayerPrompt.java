@@ -361,7 +361,8 @@ class PlayerPrompt implements HabitualRefresher {
         if (shouldBeVisible) {
             headerString = cachedInputString.substring(0, workingWord.caretPosition);
             
-            PromptContext contextObject = new PromptContext(sterileInput, workingIndices);
+            PromptContext contextObject = PromptContext
+                    .createContext(sterileInput, workingIndices);
 
             if (workingWord.str.equals(" ")) {
                 getSuggestionsFromContext(contextObject);
@@ -467,7 +468,7 @@ class PlayerPrompt implements HabitualRefresher {
             boolean isSpace = Character.isWhitespace(c);
             // spaceGate: Keeps repetition of spaces out of input
             boolean spaceGate = (!wasLastCharASpace && isSpace) || !isSpace;
-            if (isValidInputCharacter(c) && spaceGate) {
+            if (JessAdventureCore.isValidInputCharacter(c) && spaceGate) {
                 buffer += c;
             }
             else if (i < caretPosition) {
@@ -562,77 +563,5 @@ class PlayerPrompt implements HabitualRefresher {
         }
         
         return new StringCaretPair(str.substring(firstIndex, lastIndex), wordStart);
-    }
-    
-    private static boolean isValidInputCharacter(char c) {
-        switch (c) {
-            default:
-                return false;
-            case ' ':
-            case 'a':
-            case 'b':
-            case 'c':
-            case 'd':
-            case 'e':
-            case 'f':
-            case 'g':
-            case 'h':
-            case 'i':
-            case 'j':
-            case 'k':
-            case 'l':
-            case 'm':
-            case 'n':
-            case 'o':
-            case 'p':
-            case 'q':
-            case 'r':
-            case 's':
-            case 't':
-            case 'u':
-            case 'v':
-            case 'w':
-            case 'x':
-            case 'y':
-            case 'z':
-            case 'A':
-            case 'B':
-            case 'C':
-            case 'D':
-            case 'E':
-            case 'F':
-            case 'G':
-            case 'H':
-            case 'I':
-            case 'J':
-            case 'K':
-            case 'L':
-            case 'M':
-            case 'N':
-            case 'O':
-            case 'P':
-            case 'Q':
-            case 'R':
-            case 'S':
-            case 'T':
-            case 'U':
-            case 'V':
-            case 'W':
-            case 'X':
-            case 'Y':
-            case 'Z':
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-            case '0':
-            case '\'':
-                return true;
-        }
     }
 }
