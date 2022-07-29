@@ -159,69 +159,8 @@ class PromptContext extends ListSequence<SyntaxObject> {
         
         TreeSet<VocabularyWord> vocab = new TreeSet<>();
         world.loadRelevantVocabulary(vocab);
-        ListSequence<VocabularyWord> referenceSequence = new ListSequence<>();
-        
-        while (relevantPart.length() > 0) {
-            boolean foundMatch = false;
-            
-            referenceSequence.addEmptyList();
-            Iterator<VocabularyWord> iter = vocab.iterator();
-            int longestLength = vocab.first().str.length();
-            
-            // Find matches
-            while (iter.hasNext()) {
-                VocabularyWord word = iter.next();
-                int wordLength = word.str.length();
-                
-                if (wordLength > relevantPart.length()) {
-                    // This word is too long; it won't match.
-                    continue;
-                }
-                
-                if (foundMatch && wordLength < longestLength) {
-                    // If we found a match before, so we cannot match shorter
-                    // words, because they will always be less of a match.
-                    break;
-                }
-                
-                if (relevantPart.toLowerCase().startsWith(word.str.toLowerCase())) {
-                    foundMatch = true;
-                    referenceSequence.addToLastList(word);
-                    longestLength = wordLength;
-                }
-                
-                if (!foundMatch) {
-                    // If we have not yet found a match, we can keep adjusting
-                    // the last longest length we were comparing with.
-                    longestLength = wordLength;
-                }
-            }
-            
-            if (!foundMatch) {
-                // We have lost our way lol.
-                // We could not match anything with what the player wrote.
-                throw new ContextException("No vocabulary match found");
-            }
-            
-            // Crop what we've matched
-            relevantPart = relevantPart.substring(longestLength);
-            
-            // If we actually did this right, the new relevantPart should
-            // start with a space (or be empty), because we should be
-            // matching whole words. If this check fails, then the player
-            // wrote a longer word than anything we could match with.
-            if (relevantPart.length() > 0) {
-                if (relevantPart.charAt(0) != ' ') {
-                    // Aha! We have cropped off the beginning of a long word
-                    // that we do not recognize. We are lost.
-                    throw new ContextException("Failed to match whole word. Remainder: \"" + relevantPart + "\"");
-                }
-            }
-            
-            // With our check for success, we know we can continue with the
-            // rest of the input.
-            relevantPart = relevantPart.trim();
-        }
+        ListSequence<VocabularyWord> referenceSequence =
+                ContextVocabBuilder.buildVocabSequence(relevantPart, vocab);
         
         // Make sure our first word is a verb, and following words are not
         SequenceIterator<VocabularyWord> refSeqIter = referenceSequence.sequenceIterator();
@@ -256,143 +195,20 @@ class PromptContext extends ListSequence<SyntaxObject> {
         
         //TODO: Implement proper prepositions
         
-        // Load verbs
-        refSeqIter = referenceSequence.sequenceIterator();
-        if (refSeqIter.hasNext()) {
-            
-            // Passes into list mode
-            refSeqIter.next();
-            
-            while (refSeqIter.hasNext()) {
-                context.addToLastList(refSeqIter.next());
-            }
-            
-            // Passes out of list mode
-        }
-        
-        // After this, the list index will be 1, so we don't need to
-        // re-initialize this iterator. Reduce, reuse, recycle!
-        
         // TODO: Handle nouns that have a preposition in their adjectives
         //       "Angel with large wings"
         // For now, we are assuming no nouns are described with prepositions
         
-        // Build noun profile clusters, so we don't suggest descriptors that
-        // have already been typed in before.
-        // Separate these clusters by non-noun-related words.
-        // Since English is an adjective-noun-ordered language, we will assume
-        // that when a noun occurs, that it marks the end of the cluster.
-        int currentClusterIndex = 0;
-        int lastClusterIndex = -1;
-        int currentStreakIndex = 0;
-        ArrayList<NounProfile> profilesInCluster = new ArrayList<>();
-        
-        while (refSeqIter.hasNext()) {
-            refSeqIter.next();
-            
-            ListIterator<VocabularyWord> peekIter = refSeqIter.peekList().listIterator();
-            
-            // Check for prepositions
-            boolean prepositionFound = false;
-            boolean actualNounFound = false;
-            while (peekIter.hasNext()) {
-                VocabularyWord word = peekIter.next();
-                if (!word.isNoun()) {
-                    // End the last noun cluster
-                    currentClusterIndex = lastClusterIndex + 1;
-                    prepositionFound = true;
-                    break;
-                }
-            }
-            
-            // Create a new list to fill in the syntax sequence
-            if (currentClusterIndex > lastClusterIndex) {
-                lastClusterIndex = currentClusterIndex;
-                currentStreakIndex = 0;
-                context.addEmptyList();
-                profilesInCluster.clear();
-            }
-            
-            //listIter = sequenceList.listIterator();
-            if (prepositionFound) {
-                // Filter out non-prepositions, if found
-                while (refSeqIter.hasNext()) {
-                    VocabularyWord word = refSeqIter.next();
-                    if (word.isNoun()) {
-                        refSeqIter.remove();
-                    }
-                    else if (context.isLastListEmpty()) {
-                        // Add prepositions to the list.
-                        // We'll be using a special algorithm later if we're
-                        // adding nouns and their adjectives.
-                        context.addToLastList(word);
-                    }
-                    else {
-                        throw new FatalContextException(
-                                "We have multiple matches for preposition \""
-                                + word.str + "\"!"
-                        );
-                    }
-                }
-            }
-            else {
-                // Gather noun clusters, if no prepositions were found here
-                while (refSeqIter.hasNext()) {
-                    VocabularyWord word = refSeqIter.next();
-                    
-                    // Add it to the cluster's profile list so it can be marked
-                    // as missed, if necessary.
-                    if (!profilesInCluster.contains(word.nounProfile)) {
-                        profilesInCluster.add(word.nounProfile);
-                    }
-                    
-                    // Make the necessary marks
-                    ListIterator<NounProfile> profileIter =
-                            profilesInCluster.listIterator();
-                    while (profileIter.hasNext()) {
-                        NounProfile profile = profileIter.next();
-                        
-                        NounProfileCluster cluster =
-                                profile.getClusterFromIndex(currentClusterIndex);
-                        
-                        if (!context.lastListContains(cluster)) {
-                            context.addToLastList(cluster);
-                        }
-                        
-                        if (cluster.isRelevantTo(word)) {
-                            profile.markAsMentioned(
-                                    word,
-                                    currentClusterIndex, currentStreakIndex
-                            );
-                        }
-                        else {
-                            profile.markAsMissed(
-                                    currentClusterIndex,
-                                    currentStreakIndex
-                            );
-                        }
-                        
-                        if (profile.actualNouns.contains(word)) {
-                            // This is the actual noun, so we will end the noun
-                            // cluster here.
-                            cluster.isComplete = true;
-                            actualNounFound = true;
-                        }
-                    }
-                }
-            }
-            
-            if (actualNounFound) {
-                currentClusterIndex = lastClusterIndex + 1;
-            }
-            currentStreakIndex++;
-        }
+        ContextSequenceWeaver.weave(context, referenceSequence);
         
         // Now that the nouns are collected into clusters, we can clear out
         // the ones that have broken streaks, as the player probably was not
         // intending to type those.
         
-        //ListIterator<ArrayList<SyntaxObject>> synSeqIter = context.syntaxSequence.listIterator();
+        if (context.isLastListEmpty()) {
+            context.trimEnd();
+        }
+        
         SequenceIterator<SyntaxObject> synIter = context.sequenceIterator();
         while (synIter.hasNext()) {
             synIter.next();

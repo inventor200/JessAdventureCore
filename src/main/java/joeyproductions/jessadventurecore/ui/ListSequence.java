@@ -111,4 +111,11 @@ class ListSequence<T> {
     boolean isLastListEmpty() {
         return getLastList().isEmpty();
     }
+    
+    void trimEnd() {
+        while (isLastListEmpty() && sequence.size() > 1) {
+            lastList = sequence.get(sequence.size() - 2);
+            sequence.remove(sequence.size() - 1);
+        }
+    }
 }
