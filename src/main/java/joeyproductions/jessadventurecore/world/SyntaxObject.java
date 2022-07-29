@@ -21,26 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package joeyproductions.jessadventurecore.ui;
-
-import joeyproductions.jessadventurecore.world.VocabularyWord;
+package joeyproductions.jessadventurecore.world;
 
 /**
- * A class for caching sort scores for suggestions.
+ * A high-level unit of information from the player prompt.
  * @author Joseph Cramsey
  */
-class SortableSuggestion {
+public interface SyntaxObject {
     
-    VocabularyWord suggestion;
-    float score;
-    
-    SortableSuggestion(VocabularyWord suggestion, float score) {
-        this.suggestion = suggestion;
-        this.score = score;
-    }
-    
-    @Override
-    public String toString() {
-        return suggestion.suggestionStr;
-    }
+    //
 }

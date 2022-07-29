@@ -32,4 +32,5 @@ import java.util.ArrayList;
 public interface Referable {
     
     public ArrayList<VocabularyWord> gatherVocabulary();
+    public long getID();
 }

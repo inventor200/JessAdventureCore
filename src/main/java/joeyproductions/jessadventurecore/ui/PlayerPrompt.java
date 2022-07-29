@@ -57,6 +57,7 @@ import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import joeyproductions.jessadventurecore.world.VocabularyWord;
 
 /**
  * A UI component for typing out the prompt, and offering auto-complete.
@@ -86,24 +87,8 @@ class PlayerPrompt implements HabitualRefresher {
     private final int[] workingIndices = new int[] { 0, 0 };
     private int autocompleteLeftOffset;
     private boolean needsNewSuggestions = true;
-    private boolean shouldBeVisible = false;
+    private boolean doSuggestions = false;
     private final ArrayList<SortableSuggestion> cachedSuggestions = new ArrayList<>();
-    
-    private String[] testSuggestions = new String[] {
-        "look at",
-        "examine",
-        "lamp",
-        "get",
-        "floor",
-        "hang",
-        "take",
-        "drop",
-        "ball",
-        "shelf",
-        "box",
-        "window",
-        "inventory"
-    };
     
     private class FocusPair {
         
@@ -142,7 +127,11 @@ class PlayerPrompt implements HabitualRefresher {
                 prepareForSuggestions();
             }
         });
-        textField.setFocusTraversalKeysEnabled(false);
+        
+        //TODO: Make autocomplete optional: Off, No popup, With popup
+        //TODO: Remove invalid characters by default, so we can unite
+        //      the real caret position with the sterile one,
+        //      as well as clear semicolons after autocomplete
         
         textField.addCaretListener((CaretEvent e) -> {
             if (!needsNewSuggestions) {
@@ -150,8 +139,12 @@ class PlayerPrompt implements HabitualRefresher {
             }
         });
         
+        //TODO: Restore traversal keys
+        textField.setFocusTraversalKeysEnabled(false);
         InputMap tabInputMap = textField.getInputMap(JComponent.WHEN_FOCUSED);
         ActionMap tabActionMap = textField.getActionMap();
+        //TODO: Make the equals key send suggestion count to screen readers
+        //TODO: Make semicolon the autocomplete key
         tabInputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, 0), "tab");
         tabActionMap.put("tab", new AbstractAction() {
             @Override
@@ -160,7 +153,7 @@ class PlayerPrompt implements HabitualRefresher {
             }
         });
         
-        JLabel marker = new JLabel(" > ");
+        JLabel marker = new JLabel(" > "); //TODO: State current character
         inputPanel = new JPanel();
         inputPanel.setLayout(new BoxLayout(inputPanel, BoxLayout.X_AXIS));
         inputPanel.add(marker);
@@ -197,7 +190,7 @@ class PlayerPrompt implements HabitualRefresher {
             
             @Override
             public boolean isVisible() {
-                return shouldBeVisible;
+                return doSuggestions;
             }
         };
         suggestionCorePanel.setLayout(
@@ -350,33 +343,43 @@ class PlayerPrompt implements HabitualRefresher {
     @Override
     public void handleRefresh() {
         needsNewSuggestions = false;
-        shouldBeVisible = false; //TODO: Make false if there's no suggestions
+        doSuggestions = false;
         cachedSuggestions.clear();
         
         StringCaretPair sterileInput = getSterileInput();
         getWorkingIndices(sterileInput, workingIndices);
         StringCaretPair workingWord = getWorkingWord(sterileInput, workingIndices);
-        shouldBeVisible = !(workingWord.str.equals(""));
+        doSuggestions = !(workingWord.str.equals(""));
         
-        if (shouldBeVisible) {
+        if (doSuggestions) {
             headerString = cachedInputString.substring(0, workingWord.caretPosition);
             
             PromptContext contextObject = PromptContext
                     .createContext(sterileInput, workingIndices);
+        
+            System.out.println(contextObject.toString());
+            
+            if (contextObject.makesSense()) {
+                // Only make suggestions if we understand the input so far
 
-            if (workingWord.str.equals(" ")) {
-                getSuggestionsFromContext(contextObject);
+                if (workingWord.str.equals(" ")) {
+                    getSuggestionsFromContext(contextObject);
+                }
+                else {
+                    getSuggestionsFromContextAndInput(contextObject, workingWord.str);
+                }
+
+                Collections.sort(cachedSuggestions, (x, y)
+                        -> Float.compare(x.score, y.score));
+                while (cachedSuggestions.size() > JessAdventureCore.MAX_SUGGESTION_COUNT) {
+                    cachedSuggestions.remove(0);
+                }
+
+                doSuggestions = cachedSuggestions.size() > 0;
             }
             else {
-                getSuggestionsFromContextAndInput(contextObject, workingWord.str);
+                doSuggestions = false;
             }
-            
-            Collections.sort(cachedSuggestions, (x, y) -> Float.compare(x.score, y.score));
-            while (cachedSuggestions.size() > 5) {
-                cachedSuggestions.remove(0);
-            }
-            
-            shouldBeVisible = cachedSuggestions.size() > 0;
         }
         
         SwingUtilities.invokeLater(() -> {
@@ -398,12 +401,18 @@ class PlayerPrompt implements HabitualRefresher {
     }
     
     private void getSuggestionsFromContext(PromptContext contextObject) {
-        //TODO
+        int count = 0;
+        for (VocabularyWord suggestion : contextObject.suggestions) {
+            float matchingFactor = 1; //TODO: Suggestion matching strings can have individual biases
+            float bias = matchingFactor + ((float)count / 1000f);
+            cachedSuggestions.add(new SortableSuggestion(suggestion, bias));
+            count++;
+        }
     }
     
     private void getSuggestionsFromContextAndInput(PromptContext contextObject, String workingInput) {
-        for (String testSuggestion : testSuggestions) {
-            String matchingString = testSuggestion; //TODO: Suggestions can have multiple matching strings
+        for (VocabularyWord suggestion : contextObject.suggestions) {
+            String matchingString = suggestion.str; //TODO: Suggestions can have multiple matching strings
             float matchingFactor = 1; //TODO: Suggestion matching strings can have individual biases
             
             if (workingInput.length() > matchingString.length()) {
@@ -446,7 +455,7 @@ class PlayerPrompt implements HabitualRefresher {
             if (bestScore > Float.MIN_NORMAL * 2) {
                 // Do not accept irrelevant suggestions
                 cachedSuggestions.add(
-                        new SortableSuggestion(testSuggestion, bestScore)
+                        new SortableSuggestion(suggestion, bestScore)
                 );
             }
         }
@@ -561,6 +570,8 @@ class PlayerPrompt implements HabitualRefresher {
         if (wordStart >= cachedInputString.length()) {
             wordStart = cachedInputString.length() - 1;
         }
+        
+        if (lastIndex > str.length()) lastIndex = str.length();
         
         return new StringCaretPair(str.substring(firstIndex, lastIndex), wordStart);
     }

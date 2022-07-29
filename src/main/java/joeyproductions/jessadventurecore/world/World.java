@@ -39,6 +39,8 @@ public class World {
     public final ArrayList<Verb> verbs;
     private Runnable startMethod;
     
+    private long lastReferableID = 0;
+    
     private World() {
         this.nouns = new ArrayList<>();
         this.verbs = new ArrayList<>();
@@ -86,5 +88,11 @@ public class World {
                 buffer.add(iter.next());
             }
         }
+    }
+    
+    public long getNextID() {
+        long id = lastReferableID;
+        lastReferableID++;
+        return id;
     }
 }

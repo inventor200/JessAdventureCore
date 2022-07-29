@@ -36,8 +36,10 @@ public class Verb implements Referable { //TODO: Implement an express.js-style c
     public final String[] synonyms;
     public final String shortcut;
     public final String[] objectPrepositions;
+    private final long id;
     
-    public Verb(String spelling, String[] synonyms, String shortcut, String[] objectPrepositions) {
+    public Verb(String spelling, String[] synonyms, String shortcut,
+            String[] objectPrepositions, World world) {
         if (synonyms == null) {
             throw new RuntimeException("similes cannot be null; perhaps declare a zero-length array?");
         }
@@ -58,22 +60,23 @@ public class Verb implements Referable { //TODO: Implement an express.js-style c
                     JessAdventureCore.validateString(this.objectPrepositions[i])
                             .toLowerCase();
         }
+        this.id = world.getNextID();
     }
     
-    public Verb(String spelling) {
-        this(spelling, new String[0], "", new String[0]);
+    public Verb(String spelling, World world) {
+        this(spelling, new String[0], "", new String[0], world);
     }
     
-    public Verb(String spelling, String shortcut) {
-        this(spelling, new String[0], shortcut, new String[0]);
+    public Verb(String spelling, String shortcut, World world) {
+        this(spelling, new String[0], shortcut, new String[0], world);
     }
     
-    public Verb(String spelling, String[] similes) {
-        this(spelling, similes, "", new String[0]);
+    public Verb(String spelling, String[] similes, World world) {
+        this(spelling, similes, "", new String[0], world);
     }
     
-    public Verb(String spelling, String[] similes, String shortcut) {
-        this(spelling, similes, shortcut, new String[0]);
+    public Verb(String spelling, String[] similes, String shortcut, World world) {
+        this(spelling, similes, shortcut, new String[0], world);
     }
     
     public boolean isTransitive() {
@@ -84,18 +87,23 @@ public class Verb implements Referable { //TODO: Implement an express.js-style c
     public ArrayList<VocabularyWord> gatherVocabulary() {
         ArrayList<VocabularyWord> list = new ArrayList<>();
         
-        list.add(new VocabularyWord(spelling, this));
+        list.add(new VocabularyWord(spelling, this, spelling));
         
         for (String synonym : synonyms) {
-            list.add(new VocabularyWord(synonym, this));
+            list.add(new VocabularyWord(synonym, this, synonym));
         }
         
-        list.add(new VocabularyWord(spelling, this));
+        list.add(new VocabularyWord(shortcut, this, shortcut + " -> " + spelling));
         
         for (String preposition : objectPrepositions) {
-            list.add(new VocabularyWord(preposition, this));
+            list.add(new VocabularyWord(preposition, this, preposition));
         }
         
         return list;
+    }
+
+    @Override
+    public long getID() {
+        return id;
     }
 }

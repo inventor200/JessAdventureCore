@@ -23,7 +23,9 @@
  */
 package joeyproductions.jessadventurecore.world;
 
+import joeyproductions.jessadventurecore.ui.NounProfile;
 import java.util.ArrayList;
+import java.util.TreeSet;
 import joeyproductions.jessadventurecore.ui.JessAdventureCore;
 
 /**
@@ -35,8 +37,9 @@ public class Noun implements Referable { //TODO: Implement an express.js-style c
     public String primaryName;
     public ArrayList<String> alternativeNames;
     public ArrayList<String> adjectives;
+    private final long id;
     
-    public Noun(String namesWithSpaces, String... adjectives) {
+    public Noun(String namesWithSpaces, World world, String... adjectives) {
         this.alternativeNames = new ArrayList<>();
         this.adjectives = new ArrayList<>();
         if (namesWithSpaces.isBlank()) {
@@ -51,22 +54,37 @@ public class Noun implements Referable { //TODO: Implement an express.js-style c
             if (adjective.isBlank()) continue;
             this.adjectives.add(JessAdventureCore.validateString(adjective));
         }
+        this.id = world.getNextID();
     }
 
     @Override
     public ArrayList<VocabularyWord> gatherVocabulary() {
         ArrayList<VocabularyWord> list = new ArrayList<>();
+        TreeSet<VocabularyWord> actualNouns = new TreeSet<>();
         
-        list.add(new VocabularyWord(primaryName, this));
+        VocabularyWord _primaryName =
+                new VocabularyWord(primaryName, this, primaryName);
+        list.add(_primaryName);
+        actualNouns.add(_primaryName);
         
         for (String alternative : alternativeNames) {
-            list.add(new VocabularyWord(alternative, this));
+            VocabularyWord _alternative =
+                    new VocabularyWord(alternative, this, alternative);
+            list.add(_alternative);
+            actualNouns.add(_alternative);
         }
         
         for (String adjective : adjectives) {
-            list.add(new VocabularyWord(adjective, this));
+            list.add(new VocabularyWord(adjective, this, adjective));
         }
         
+        NounProfile.apply(this, list, actualNouns);
+        
         return list;
+    }
+
+    @Override
+    public long getID() {
+        return id;
     }
 }

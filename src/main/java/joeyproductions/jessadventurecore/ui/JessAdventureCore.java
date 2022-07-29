@@ -60,6 +60,9 @@ import joeyproductions.jessadventurecore.world.World;
  */
 public class JessAdventureCore implements ActionListener, HabitualRefresher {
     
+    //TODO: Screen reader mode, which has a specialized layout and controls
+    //      for optimal screen reader presentation
+    
     public static float FONT_SIZE_MULTIPLIER = 1f;
     public static final int FULL_SIZE_FONT_SIZE = 14;
     public static int STORY_FONT_SIZE = FULL_SIZE_FONT_SIZE;
@@ -78,6 +81,7 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
     public static final int DARK_PARAGRAPH_VALUE = 204;
     public static final int DARK_HEADER_VALUE = 255;
     public static boolean DARK_MODE = true;
+    public static int MAX_SUGGESTION_COUNT = 3;
     
     private static final String[] FONT_IDS = new String[] {
         "Button.font",
@@ -213,7 +217,7 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
             };
             mainColumns.add(core.storyColumn, BorderLayout.CENTER);
             
-            core.storyColumn.add(core.layers, BorderLayout.CENTER);
+            core.storyColumn.add(core.layers, BorderLayout.CENTER); //TODO: Notes panel goes on the left side
             core.layers.add(storyPanelPair.scrollPane, JLayeredPane.DEFAULT_LAYER);
             core.layers.add(core.playerPrompt.autocompleteSuggestionPanel, JLayeredPane.POPUP_LAYER);
             
@@ -306,6 +310,8 @@ public class JessAdventureCore implements ActionListener, HabitualRefresher {
             REFRESH_THREAD.initialize();
             REFRESH_THREAD.start();
             System.out.println("Batch refresh thread has started!");
+            
+            core.playerPrompt.textField.requestFocus();
             
             System.out.println("UI initialization done!");
             core.postUIInit();

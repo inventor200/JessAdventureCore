@@ -43,21 +43,21 @@ public class TestGame {
                 "examine", new String[] {
                     "look at",
                     "inspect"
-                }, "x"
+                }, "x", testWorld
         ));
-        testWorld.verbs.add(new Verb("take"));
+        testWorld.verbs.add(new Verb("take", testWorld));
         
         testWorld.nouns.add(new Noun(
-                "bucket", "pale", "red", "sandy", "plastic"
+                "bucket", testWorld, "pale", "red", "sandy", "plastic"
         ));
         testWorld.nouns.add(new Noun(
-                "bucket", "blue", "clean", "plastic"
+                "bucket", testWorld, "blue", "clean", "plastic"
         ));
         testWorld.nouns.add(new Noun(
-                "candy", "red"
+                "candy", testWorld, "red"
         ));
         testWorld.nouns.add(new Noun(
-                "bucket", "small", "pale", "red", "plastic"
+                "bucket", testWorld, "small", "pale", "red", "plastic"
         ));
         
         JessAdventureCore.initAdventure("Test Game", "Joseph Cramsey", testWorld);

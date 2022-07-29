@@ -23,27 +23,50 @@
  */
 package joeyproductions.jessadventurecore.world;
 
+import joeyproductions.jessadventurecore.ui.NounProfile;
+
 /**
  * A String with an associated Referable.
  * @author Joseph Cramsey
  */
-public class VocabularyWord implements Comparable<VocabularyWord> {
+public class VocabularyWord implements Comparable<VocabularyWord>, SyntaxObject {
     
     public final String str;
     public final Referable referable;
+    public final String suggestionStr;
+    public NounProfile nounProfile;
     
-    public VocabularyWord(String str, Referable referable) {
+    public VocabularyWord(String str, Referable referable, String suggestionStr) {
         this.str = str;
         this.referable = referable;
+        this.suggestionStr = suggestionStr;
+        this.nounProfile = null;
     }
 
     @Override
     public int compareTo(VocabularyWord o) {
         int tLen = this.str.length();
         int oLen = o.str.length();
+        
+        // First, compare by length
         if (tLen == oLen) {
-            return this.str.compareToIgnoreCase(o.str);
+            // Then, compare alphabetically
+            int strComp = this.str.compareToIgnoreCase(o.str);
+            if (strComp == 0) {
+                // Then, compare by referable ID
+                return Long.compare(this.referable.getID(), o.referable.getID());
+            }
+            return strComp;
         }
         return Integer.compare(oLen, tLen);
+    }
+    
+    public boolean isNoun() {
+        return nounProfile != null;
+    }
+    
+    @Override
+    public String toString() {
+        return str;
     }
 }

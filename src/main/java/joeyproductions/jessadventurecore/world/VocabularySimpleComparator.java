@@ -21,26 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package joeyproductions.jessadventurecore.ui;
+package joeyproductions.jessadventurecore.world;
 
-import joeyproductions.jessadventurecore.world.VocabularyWord;
+import java.util.Comparator;
 
 /**
- * A class for caching sort scores for suggestions.
+ * A basic comparator that compares VocabularyWords by their literal content.
  * @author Joseph Cramsey
  */
-class SortableSuggestion {
-    
-    VocabularyWord suggestion;
-    float score;
-    
-    SortableSuggestion(VocabularyWord suggestion, float score) {
-        this.suggestion = suggestion;
-        this.score = score;
-    }
-    
+public class VocabularySimpleComparator implements Comparator<VocabularyWord> {
+
     @Override
-    public String toString() {
-        return suggestion.suggestionStr;
+    public int compare(VocabularyWord o1, VocabularyWord o2) {
+        int len1 = o1.str.length();
+        int len2 = o2.str.length();
+        
+        // First, compare by length
+        if (len1 == len2) {
+            // Then, compare alphabetically
+            return o1.str.compareToIgnoreCase(o2.str);
+        }
+        return Integer.compare(len2, len1);
     }
 }
