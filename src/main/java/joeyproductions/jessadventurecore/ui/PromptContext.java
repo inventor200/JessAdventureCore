@@ -109,6 +109,13 @@ class PromptContext extends ListSequence<SyntaxObject> {
     }
     
     static PromptContext createContext
+        (String sterileInput) throws ContextException, FatalContextException {
+            
+        int len = sterileInput.length();
+        return createContext(sterileInput, new int[] { len, len });
+    }
+    
+    static PromptContext createContext
         (String sterileInput, int[] workingIndices)
                 throws ContextException, FatalContextException {
             
@@ -130,13 +137,23 @@ class PromptContext extends ListSequence<SyntaxObject> {
             return context;
         }
         
-        // We are not wasting our computation time wondering what the player was
-        // currently typing. We are only concerned with the fully-complete
-        // words already typed, or halting when the input so far makes no sense.
-        // For this reason, we are cleaving off the word which contains the
-        // player's input caret.
-        String relevantPart = sterileInput
-                .substring(0, workingIndices[0]).trim();
+        
+        String relevantPart;
+        
+        if (workingIndices[0] == workingIndices[1] && workingIndices[0] == sterileInput.length()) {
+            // Both working indices at the end of the string indicate that
+            // we are evaluating the entire string.
+            relevantPart = sterileInput.trim();
+        }
+        else {
+            // We are not wasting our computation time wondering what the player
+            // was currently typing. We are only concerned with the fully-
+            // complete words already typed, or halting when the input so far
+            // makes no sense.
+            // For this reason, we are cleaving off the word which contains the
+            // player's input caret.
+            relevantPart = sterileInput.substring(0, workingIndices[0]).trim();
+        }
         
         //System.out.println("Relevant part: |" + relevantPart + "|");
         
@@ -167,7 +184,7 @@ class PromptContext extends ListSequence<SyntaxObject> {
                     break;
                 }
                 
-                if (relevantPart.startsWith(word.str)) {
+                if (relevantPart.toLowerCase().startsWith(word.str.toLowerCase())) {
                     foundMatch = true;
                     referenceSequence.addToLastList(word);
                     longestLength = wordLength;

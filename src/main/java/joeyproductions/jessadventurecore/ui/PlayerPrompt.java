@@ -470,11 +470,13 @@ class PlayerPrompt implements HabitualRefresher {
     private void getSuggestionsFromContextAndInput
         (PromptContext contextObject, String workingInput) {
             
+        String caselessInput = workingInput.toLowerCase();
+            
         for (VocabularyWord suggestion : contextObject.suggestions) {
             String matchingString = suggestion.str; //TODO: Suggestions can have multiple matching strings
             float matchingFactor = 1; //TODO: Suggestion matching strings can have individual biases
             
-            if (workingInput.length() > matchingString.length()) {
+            if (caselessInput.length() > matchingString.length()) {
                 // If we're already typing past the word, then don't
                 // suggest it
                 continue;
@@ -482,15 +484,16 @@ class PlayerPrompt implements HabitualRefresher {
 
             float bestScore = -1;
 
-            int smallerLength = workingInput.length();
+            int smallerLength = caselessInput.length();
             int lengthDiff = matchingString.length() - smallerLength;
 
             // Match partial words too
             for (int i = 0; i <= lengthDiff; i++) {
-                String fragment = matchingString.substring(i, smallerLength + i);
+                String fragment = matchingString
+                        .substring(i, smallerLength + i).toLowerCase();
                 int charMatches = 0;
                 for (int j = 0; j < smallerLength; j++) {
-                    if (workingInput.charAt(j) == fragment.charAt(j)) {
+                    if (caselessInput.charAt(j) == fragment.charAt(j)) {
                         charMatches++;
                     }
                 }
