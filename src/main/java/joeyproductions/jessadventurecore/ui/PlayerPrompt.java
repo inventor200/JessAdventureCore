@@ -35,6 +35,7 @@ import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -57,6 +58,10 @@ import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.text.AbstractDocument;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DocumentFilter;
 import joeyproductions.jessadventurecore.world.VocabularyWord;
 
 /**
@@ -114,24 +119,61 @@ class PlayerPrompt implements HabitualRefresher {
         textField.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent e) {
+                //System.out.println("Insert: " + textField.getText());
                 prepareForSuggestions();
             }
 
             @Override
             public void removeUpdate(DocumentEvent e) {
+                //System.out.println("Remove: " + textField.getText());
                 prepareForSuggestions();
             }
 
             @Override
             public void changedUpdate(DocumentEvent e) {
-                prepareForSuggestions();
+                // Irrelevant
+            }
+        });
+        AbstractDocument doc = (AbstractDocument)textField.getDocument();
+        doc.setDocumentFilter(new DocumentFilter() {
+            private String getFilteredString(String string) {
+                String buffer = "";
+                for (int i = 0; i < string.length(); i++) {
+                    char c = string.charAt(i);
+                    if (JessAdventureCore.isValidInputCharacter(c)) {
+                        buffer += c;
+                    }
+                }
+                
+                return buffer;
+            }
+            
+            @Override
+            public void insertString
+                (DocumentFilter.FilterBypass fb, int offset, String string,
+                        AttributeSet attr) throws BadLocationException {
+                    
+                String filtered = getFilteredString(string);
+                
+                //System.out.println("Filtered insert: " + filtered);
+                
+                super.insertString(fb, offset, filtered, attr);
+            }
+                
+            @Override
+            public void replace
+                (DocumentFilter.FilterBypass fb, int offset, int length, String string,
+                        AttributeSet attr) throws BadLocationException {
+                    
+                String filtered = getFilteredString(string);
+                
+                //System.out.println("Filtered replace: " + filtered);
+                
+                super.replace(fb, offset, length, filtered, attr);
             }
         });
         
         //TODO: Make autocomplete optional: Off, No popup, With popup
-        //TODO: Remove invalid characters by default, so we can unite
-        //      the real caret position with the sterile one,
-        //      as well as clear semicolons after autocomplete
         
         textField.addCaretListener((CaretEvent e) -> {
             if (!needsNewSuggestions) {
@@ -139,17 +181,27 @@ class PlayerPrompt implements HabitualRefresher {
             }
         });
         
-        //TODO: Restore traversal keys
-        textField.setFocusTraversalKeysEnabled(false);
-        InputMap tabInputMap = textField.getInputMap(JComponent.WHEN_FOCUSED);
-        ActionMap tabActionMap = textField.getActionMap();
-        //TODO: Make the equals key send suggestion count to screen readers
-        //TODO: Make semicolon the autocomplete key
-        tabInputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, 0), "tab");
-        tabActionMap.put("tab", new AbstractAction() {
+        textField.addKeyListener(new KeyAdapter() {
             @Override
-            public void actionPerformed(ActionEvent e) {
-                handleAutocomplete();
+            public void keyTyped(KeyEvent e) {
+                char c = e.getKeyChar();
+                switch (c) {
+                    case KeyEvent.VK_BACK_SPACE:
+                    case KeyEvent.VK_TAB:
+                        return;
+                    case ';':
+                        handleAutocomplete();
+                        e.consume();
+                        return;
+                    case '=':
+                        readSuggestions();
+                        e.consume();
+                        return;
+                }
+                
+                if (!JessAdventureCore.isValidInputCharacter(c)) {
+                    e.consume();
+                }
             }
         });
         
@@ -332,6 +384,7 @@ class PlayerPrompt implements HabitualRefresher {
         cachedInputCaretPosition = textField.getCaretPosition();
         
         needsNewSuggestions = true;
+        
         RefreshThread.endPause(this);
     }
 
@@ -346,27 +399,28 @@ class PlayerPrompt implements HabitualRefresher {
         doSuggestions = false;
         cachedSuggestions.clear();
         
-        StringCaretPair sterileInput = getSterileInput();
+        //StringCaretPair sterileInput = getSterileInput();
+        StringCaretPair sterileInput =
+                new StringCaretPair(cachedInputString, cachedInputCaretPosition);
         getWorkingIndices(sterileInput, workingIndices);
-        StringCaretPair workingWord = getWorkingWord(sterileInput, workingIndices);
-        doSuggestions = !(workingWord.str.equals(""));
+        String workingWord = getWorkingWord();
+        doSuggestions = !(workingWord.equals(""));
         
         if (doSuggestions) {
-            headerString = cachedInputString.substring(0, workingWord.caretPosition);
+            headerString = cachedInputString.substring(0, workingIndices[0]);
             
-            PromptContext contextObject = PromptContext
-                    .createContext(sterileInput, workingIndices);
-        
-            System.out.println(contextObject.toString());
-            
-            if (contextObject.makesSense()) {
-                // Only make suggestions if we understand the input so far
+            try {
+                PromptContext contextObject = PromptContext
+                        .createContext(sterileInput.str, workingIndices);
 
-                if (workingWord.str.equals(" ")) {
+                System.out.println(contextObject.toString());
+                
+                // Only make suggestions if we understand the input so far
+                if (workingWord.equals(" ")) {
                     getSuggestionsFromContext(contextObject);
                 }
                 else {
-                    getSuggestionsFromContextAndInput(contextObject, workingWord.str);
+                    getSuggestionsFromContextAndInput(contextObject, workingWord);
                 }
 
                 Collections.sort(cachedSuggestions, (x, y)
@@ -376,9 +430,12 @@ class PlayerPrompt implements HabitualRefresher {
                 }
 
                 doSuggestions = cachedSuggestions.size() > 0;
-            }
-            else {
+            } catch (ContextException ex) {
+                // This is actually fine; we just won't handle suggestions
                 doSuggestions = false;
+            } catch (FatalContextException ex) {
+                doSuggestions = false;
+                ex.printStackTrace(System.err);
             }
         }
         
@@ -410,7 +467,9 @@ class PlayerPrompt implements HabitualRefresher {
         }
     }
     
-    private void getSuggestionsFromContextAndInput(PromptContext contextObject, String workingInput) {
+    private void getSuggestionsFromContextAndInput
+        (PromptContext contextObject, String workingInput) {
+            
         for (VocabularyWord suggestion : contextObject.suggestions) {
             String matchingString = suggestion.str; //TODO: Suggestions can have multiple matching strings
             float matchingFactor = 1; //TODO: Suggestion matching strings can have individual biases
@@ -463,9 +522,15 @@ class PlayerPrompt implements HabitualRefresher {
     
     private void handleAutocomplete() {
         //TODO
+        System.out.println("Autocomplete");
     }
     
-    private StringCaretPair getSterileInput() {
+    private void readSuggestions() {
+        //TODO
+        System.out.println("Read suggestions");
+    }
+    
+    /*private StringCaretPair getSterileInput() {
         String str = cachedInputString;
         int caretPosition = cachedInputCaretPosition;
         
@@ -492,7 +557,7 @@ class PlayerPrompt implements HabitualRefresher {
         }
         
         return new StringCaretPair(buffer, caretPosition);
-    }
+    }*/
     
     private static void getWorkingIndices(StringCaretPair sterileInput, int[] buffer) {
         if (buffer == null) {
@@ -543,36 +608,28 @@ class PlayerPrompt implements HabitualRefresher {
         buffer[1] = lastIndex;
     }
     
-    private StringCaretPair getWorkingWord(StringCaretPair sterileInput, int[] workingIndices) {
-        String str = sterileInput.str;
-        int originalCaret = cachedInputCaretPosition;
+    private String getWorkingWord() {
+        String str = cachedInputString;
         
         if (str.isBlank()) {
-            return new StringCaretPair("", 0); // Indicates no input
+            return ""; // Indicates no input
         }
         
         // Any cases after this will probably have a word...
-        int caretIndex = sterileInput.caretPosition;
         
-        if (str.endsWith(" ") && caretIndex == str.length()) {
-            return new StringCaretPair(" ", originalCaret); // Indicates a new word, not yet entered
+        if (str.endsWith(" ") && cachedInputCaretPosition == str.length()) {
+            return " "; // Indicates a new word, not yet entered
         }
         
         int firstIndex = workingIndices[0];
         int lastIndex = workingIndices[1];
         
-        int wordStart = originalCaret
-                + (firstIndex - caretIndex);
-        
-        if (wordStart < 0) {
-            wordStart = 0;
-        }
-        if (wordStart >= cachedInputString.length()) {
-            wordStart = cachedInputString.length() - 1;
+        if (firstIndex < 0) {
+            firstIndex = 0;
         }
         
         if (lastIndex > str.length()) lastIndex = str.length();
         
-        return new StringCaretPair(str.substring(firstIndex, lastIndex), wordStart);
+        return str.substring(firstIndex, lastIndex);
     }
 }

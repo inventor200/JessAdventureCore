@@ -39,15 +39,13 @@ import joeyproductions.jessadventurecore.world.World;
  */
 class PromptContext {
     
-    //public Verb verb;
     public VocabularyWord[] suggestions;
     
-    private ArrayList<ArrayList<SyntaxObject>> syntaxSequence;
-    private boolean makesSense;
-    private String nonsenseReason = "No reason given";
-    //TODO: We are storing a sequence of word strings, and the world references
-    //      they could be referring to. We will then choose the references
-    //      which support the longest chains of consistent references.
+    private final ArrayList<ArrayList<SyntaxObject>> syntaxSequence;
+    
+    // We are storing a sequence of word strings, and the world references
+    // they could be referring to. We then choose the references
+    // which support the longest chains of consistent references.
     //
     // For example, if we have...
     // 1. A pale red sandy plastic bucket (reference ITEM_1)
@@ -68,32 +66,19 @@ class PromptContext {
     // complete any adjectives that describe either of the two items.
     
     private PromptContext() {
-        //verb = null;
         syntaxSequence = new ArrayList<>();
         suggestions = new VocabularyWord[0];
-        makesSense = true;
     }
     
     int size() {
-        if (!makesSense) {
-            return 0;
-        }
         return syntaxSequence.size();
     }
     
     ListIterator<SyntaxObject> listIterator(int sequenceIndex) {
-        if (!makesSense) {
-            throw new RuntimeException(
-                    "Cannot get an iterator from a context that makes no sense"
-            );
-        }
         return syntaxSequence.get(sequenceIndex).listIterator();
     }
     
     boolean isInstanceOf(int sequenceIndex, Class<? extends SyntaxObject> listType) {
-        if (!makesSense) {
-            return false;
-        }
         ArrayList<SyntaxObject> list = syntaxSequence.get(sequenceIndex);
         if (list.isEmpty()) {
             return false;
@@ -102,30 +87,17 @@ class PromptContext {
     }
     
     String getClassNameOf(int sequenceIndex) {
-        if (!makesSense) {
-            return "nonsense";
-        }
         ArrayList<SyntaxObject> list = syntaxSequence.get(sequenceIndex);
         if (list.isEmpty()) {
-            return "nonsense";
+            return "null";
         }
         return list.get(0).getClass().getName();
-    }
-    
-    boolean makesSense() {
-        return makesSense;
     }
     
     @Override
     public String toString() {
         StringBuilder str = new StringBuilder();
         str.append("//// CONTEXT\n");
-        
-        if (!makesSense) {
-            str.append("  Doesn't make sense!\n");
-            str.append("  ").append(nonsenseReason);
-            return str.toString();
-        }
         
         for (int i = 0; i < size(); i++) {
             str.append("  ").append(Integer.toString(i)).append(" - ");
@@ -140,7 +112,10 @@ class PromptContext {
         return str.toString();
     }
     
-    static PromptContext createContext(StringCaretPair sterileInput, int[] workingIndices) {
+    static PromptContext createContext
+        (String sterileInput, int[] workingIndices)
+                throws ContextException, FatalContextException {
+            
         World world = JessAdventureCore.CORE.world;
         PromptContext context = new PromptContext();
         
@@ -164,10 +139,10 @@ class PromptContext {
         // words already typed, or halting when the input so far makes no sense.
         // For this reason, we are cleaving off the word which contains the
         // player's input caret.
-        String relevantPart = sterileInput.str
+        String relevantPart = sterileInput
                 .substring(0, workingIndices[0]).trim();
         
-        //System.out.println("Relevant part: " + relevantPart);
+        //System.out.println("Relevant part: |" + relevantPart + "|");
         
         TreeSet<VocabularyWord> vocab = new TreeSet<>();
         world.loadRelevantVocabulary(vocab);
@@ -220,9 +195,7 @@ class PromptContext {
             if (!foundMatch) {
                 // We have lost our way lol.
                 // We could not match anything with what the player wrote.
-                context.makesSense = false;
-                context.nonsenseReason = "No vocabulary match found";
-                return context;
+                throw new ContextException("No vocabulary match found");
             }
             
             // Crop what we've matched
@@ -236,9 +209,7 @@ class PromptContext {
                 if (relevantPart.charAt(0) != ' ') {
                     // Aha! We have cropped off the beginning of a long word
                     // that we do not recognize. We are lost.
-                    context.makesSense = false;
-                    context.nonsenseReason = "Failed to match whole word. Remainder: \"" + relevantPart + "\"";
-                    return context;
+                    throw new ContextException("Failed to match whole word. Remainder: \"" + relevantPart + "\"");
                 }
             }
             
@@ -269,9 +240,7 @@ class PromptContext {
             // player did not start their input with the correct pare of speech,
             // and makes no sense as an input.
             if (sequenceList.isEmpty()) {
-                context.makesSense = false;
-                context.nonsenseReason = "Incorrect part of speech";
-                return context;
+                throw new ContextException("Incorrect part of speech");
             }
             
             // Only the first word in the input is a verb
@@ -354,10 +323,7 @@ class PromptContext {
                         syntaxList.add(word);
                     }
                     else {
-                        context.makesSense = false;
-                        context.nonsenseReason = "Cannot have multiple matches for preposition"
-                                + word.str + "\"!";
-                        throw new RuntimeException(
+                        throw new FatalContextException(
                                 "We have multiple matches for preposition \""
                                 + word.str + "\"!"
                         );
@@ -442,9 +408,7 @@ class PromptContext {
             if (syntaxList.isEmpty()) {
                 // We couldn't find a noun that is being consistently
                 // referred to, so the input doesn't make sense.
-                context.makesSense = false;
-                context.nonsenseReason = "Failed to find noun with full streak";
-                return context;
+                throw new ContextException("Failed to find noun with full streak");
             }
         }
         
