@@ -37,11 +37,11 @@ import joeyproductions.jessadventurecore.world.World;
  * An object storing the context of the player's input so far.
  * @author Joseph Cramsey
  */
-class PromptContext {
+class PromptContext extends ListSequence<SyntaxObject> {
     
     public VocabularyWord[] suggestions;
     
-    private final ArrayList<ArrayList<SyntaxObject>> syntaxSequence;
+    //private final ArrayList<ArrayList<SyntaxObject>> syntaxSequence;
     
     // We are storing a sequence of word strings, and the world references
     // they could be referring to. We then choose the references
@@ -66,20 +66,12 @@ class PromptContext {
     // complete any adjectives that describe either of the two items.
     
     private PromptContext() {
-        syntaxSequence = new ArrayList<>();
+        super();
         suggestions = new VocabularyWord[0];
     }
     
-    int size() {
-        return syntaxSequence.size();
-    }
-    
-    ListIterator<SyntaxObject> listIterator(int sequenceIndex) {
-        return syntaxSequence.get(sequenceIndex).listIterator();
-    }
-    
     boolean isInstanceOf(int sequenceIndex, Class<? extends SyntaxObject> listType) {
-        ArrayList<SyntaxObject> list = syntaxSequence.get(sequenceIndex);
+        ArrayList<SyntaxObject> list = sequence.get(sequenceIndex);
         if (list.isEmpty()) {
             return false;
         }
@@ -87,7 +79,7 @@ class PromptContext {
     }
     
     String getClassNameOf(int sequenceIndex) {
-        ArrayList<SyntaxObject> list = syntaxSequence.get(sequenceIndex);
+        ArrayList<SyntaxObject> list = sequence.get(sequenceIndex);
         if (list.isEmpty()) {
             return "null";
         }
@@ -99,14 +91,18 @@ class PromptContext {
         StringBuilder str = new StringBuilder();
         str.append("//// CONTEXT\n");
         
-        for (int i = 0; i < size(); i++) {
-            str.append("  ").append(Integer.toString(i)).append(" - ");
-            str.append(getClassNameOf(i)).append("\n");
-            ListIterator<SyntaxObject> iter = listIterator(i);
+        SequenceIterator<SyntaxObject> iter = sequenceIterator();
+        int index = 0;
+        while (iter.hasNext()) {
+            str.append("  ").append(Integer.toString(index)).append(" - ");
+            str.append(getClassNameOf(index)).append("\n");
+            //ListIterator<SyntaxObject> iter = listIterator(i);
+            iter.next();
             while (iter.hasNext()) {
                 SyntaxObject obj = iter.next();
                 str.append("    ").append(obj.toString()).append("\n");
             }
+            index++;
         }
         
         return str.toString();
@@ -146,24 +142,19 @@ class PromptContext {
         
         TreeSet<VocabularyWord> vocab = new TreeSet<>();
         world.loadRelevantVocabulary(vocab);
-        ArrayList<ArrayList<VocabularyWord>> referenceSequence = new ArrayList<>();
+        ListSequence<VocabularyWord> referenceSequence = new ListSequence<>();
         
         while (relevantPart.length() > 0) {
             boolean foundMatch = false;
             
-            ArrayList<VocabularyWord> references = new ArrayList<>();
-            referenceSequence.add(references);
+            referenceSequence.addEmptyList();
             Iterator<VocabularyWord> iter = vocab.iterator();
             int longestLength = vocab.first().str.length();
-            
-            //System.out.println("Matching |" + relevantPart + "|");
-            //System.out.println("Longest length is " + Integer.toString(longestLength));
             
             // Find matches
             while (iter.hasNext()) {
                 VocabularyWord word = iter.next();
                 int wordLength = word.str.length();
-                //System.out.println("Checking " + word.str);
                 
                 if (wordLength > relevantPart.length()) {
                     // This word is too long; it won't match.
@@ -178,17 +169,14 @@ class PromptContext {
                 
                 if (relevantPart.startsWith(word.str)) {
                     foundMatch = true;
-                    references.add(word);
+                    referenceSequence.addToLastList(word);
                     longestLength = wordLength;
-                    //System.out.println("Adjusting longest length to " + Integer.toString(longestLength));
-                    //System.out.println("Matched!");
                 }
                 
                 if (!foundMatch) {
                     // If we have not yet found a match, we can keep adjusting
                     // the last longest length we were comparing with.
                     longestLength = wordLength;
-                    //System.out.println("Adjusting longest length to " + Integer.toString(longestLength));
                 }
             }
             
@@ -219,27 +207,25 @@ class PromptContext {
         }
         
         // Make sure our first word is a verb, and following words are not
-        ListIterator<ArrayList<VocabularyWord>> sequenceIter =
-                referenceSequence.listIterator();
+        SequenceIterator<VocabularyWord> refSeqIter = referenceSequence.sequenceIterator();
         boolean requiringVerb = true;
         
-        while (sequenceIter.hasNext()) {
-            ArrayList<VocabularyWord> sequenceList = sequenceIter.next();
-            ListIterator<VocabularyWord> listIter = sequenceList.listIterator();
+        while (refSeqIter.hasNext()) {
+            refSeqIter.next();
 
-            while (listIter.hasNext()) {
-                VocabularyWord listItem = listIter.next();
+            while (refSeqIter.hasNext()) {
+                VocabularyWord listItem = refSeqIter.next();
                 if ((listItem.referable instanceof Verb) != requiringVerb) {
                     // Remove a possible reference if it does not meet the
                     // part-of-speech requirement.
-                    listIter.remove();
+                    refSeqIter.remove();
                 }
             }
 
             // If the resulting list in the sequence is empty, then the
             // player did not start their input with the correct pare of speech,
             // and makes no sense as an input.
-            if (sequenceList.isEmpty()) {
+            if (refSeqIter.peekList().isEmpty()) {
                 throw new ContextException("Incorrect part of speech");
             }
             
@@ -250,16 +236,25 @@ class PromptContext {
         // IF WE HAVE MADE IT THIS FAR, then we can confirm that we have matched
         // a verb AT THE LEAST. So, at this point, we should identify the
         // prepositions being used, and then narrow down the verb from there.
-        ArrayList<SyntaxObject> syntaxList = new ArrayList<>();
         
         //TODO: Implement proper prepositions
         
         // Load verbs
-        ListIterator<VocabularyWord> verbIter = referenceSequence.get(0).listIterator();
-        while (verbIter.hasNext()) {
-            syntaxList.add(verbIter.next());
+        refSeqIter = referenceSequence.sequenceIterator();
+        if (refSeqIter.hasNext()) {
+            
+            // Passes into list mode
+            refSeqIter.next();
+            
+            while (refSeqIter.hasNext()) {
+                context.addToLastList(refSeqIter.next());
+            }
+            
+            // Passes out of list mode
         }
-        context.syntaxSequence.add(syntaxList);
+        
+        // After this, the list index will be 1, so we don't need to
+        // re-initialize this iterator. Reduce, reuse, recycle!
         
         // TODO: Handle nouns that have a preposition in their adjectives
         //       "Angel with large wings"
@@ -273,54 +268,47 @@ class PromptContext {
         int currentClusterIndex = 0;
         int lastClusterIndex = -1;
         int currentStreakIndex = 0;
-        sequenceIter = referenceSequence.listIterator(1);
         ArrayList<NounProfile> profilesInCluster = new ArrayList<>();
         
-        while (sequenceIter.hasNext()) {
-            ArrayList<VocabularyWord> sequenceList = sequenceIter.next();
+        while (refSeqIter.hasNext()) {
+            refSeqIter.next();
+            
+            ListIterator<VocabularyWord> peekIter = refSeqIter.peekList().listIterator();
             
             // Check for prepositions
-            ListIterator<VocabularyWord> listIter = sequenceList.listIterator();
             boolean prepositionFound = false;
             boolean actualNounFound = false;
-            while (listIter.hasNext()) {
-                VocabularyWord word = listIter.next();
+            while (peekIter.hasNext()) {
+                VocabularyWord word = peekIter.next();
                 if (!word.isNoun()) {
                     // End the last noun cluster
                     currentClusterIndex = lastClusterIndex + 1;
-                    //System.out.println("Prep > Last: " + Integer.toString(lastClusterIndex) + " ; Current: " + Integer.toString(currentClusterIndex));
                     prepositionFound = true;
                     break;
                 }
             }
             
             // Create a new list to fill in the syntax sequence
-            //System.out.println("Last: " + Integer.toString(lastClusterIndex) + " ; Current: " + Integer.toString(currentClusterIndex));
             if (currentClusterIndex > lastClusterIndex) {
-                //System.out.println("New list");
                 lastClusterIndex = currentClusterIndex;
                 currentStreakIndex = 0;
-                if (!syntaxList.isEmpty()) {
-                    syntaxList = new ArrayList<>();
-                    context.syntaxSequence.add(syntaxList);
-                    profilesInCluster.clear();
-                    //System.out.println("List added");
-                }
+                context.addEmptyList();
+                profilesInCluster.clear();
             }
             
-            listIter = sequenceList.listIterator();
+            //listIter = sequenceList.listIterator();
             if (prepositionFound) {
                 // Filter out non-prepositions, if found
-                while (listIter.hasNext()) {
-                    VocabularyWord word = listIter.next();
+                while (refSeqIter.hasNext()) {
+                    VocabularyWord word = refSeqIter.next();
                     if (word.isNoun()) {
-                        listIter.remove();
+                        refSeqIter.remove();
                     }
-                    else if (syntaxList.isEmpty()) {
+                    else if (context.isLastListEmpty()) {
                         // Add prepositions to the list.
                         // We'll be using a special algorithm later if we're
                         // adding nouns and their adjectives.
-                        syntaxList.add(word);
+                        context.addToLastList(word);
                     }
                     else {
                         throw new FatalContextException(
@@ -332,8 +320,8 @@ class PromptContext {
             }
             else {
                 // Gather noun clusters, if no prepositions were found here
-                while (listIter.hasNext()) {
-                    VocabularyWord word = listIter.next();
+                while (refSeqIter.hasNext()) {
+                    VocabularyWord word = refSeqIter.next();
                     
                     // Add it to the cluster's profile list so it can be marked
                     // as missed, if necessary.
@@ -350,8 +338,8 @@ class PromptContext {
                         NounProfileCluster cluster =
                                 profile.getClusterFromIndex(currentClusterIndex);
                         
-                        if (!syntaxList.contains(cluster)) {
-                            syntaxList.add(cluster);
+                        if (!context.lastListContains(cluster)) {
+                            context.addToLastList(cluster);
                         }
                         
                         if (cluster.isRelevantTo(word)) {
@@ -366,23 +354,19 @@ class PromptContext {
                                     currentStreakIndex
                             );
                         }
-                    }
-                    
-                    //System.out.println("Marking cluster from: " + word.str);
-                    //System.out.println(profile.getLastCluster().toString());
-                    
-                    if (word.nounProfile.actualNouns.contains(word)) {
-                        // This is the actual noun, so we will end the noun
-                        // cluster here.
-                        //System.out.println("Found actual noun: " + word.str);
-                        actualNounFound = true;
+                        
+                        if (profile.actualNouns.contains(word)) {
+                            // This is the actual noun, so we will end the noun
+                            // cluster here.
+                            cluster.isComplete = true;
+                            actualNounFound = true;
+                        }
                     }
                 }
             }
             
             if (actualNounFound) {
                 currentClusterIndex = lastClusterIndex + 1;
-                //System.out.println("Noun > Last: " + Integer.toString(lastClusterIndex) + " ; Current: " + Integer.toString(currentClusterIndex));
             }
             currentStreakIndex++;
         }
@@ -391,21 +375,21 @@ class PromptContext {
         // the ones that have broken streaks, as the player probably was not
         // intending to type those.
         
-        ListIterator<ArrayList<SyntaxObject>> synSeqIter = context.syntaxSequence.listIterator();
-        while (synSeqIter.hasNext()) {
-            syntaxList = synSeqIter.next();
-            ListIterator<SyntaxObject> synListIter = syntaxList.listIterator();
-            while (synListIter.hasNext()) {
-                SyntaxObject synObj = synListIter.next();
+        //ListIterator<ArrayList<SyntaxObject>> synSeqIter = context.syntaxSequence.listIterator();
+        SequenceIterator<SyntaxObject> synIter = context.sequenceIterator();
+        while (synIter.hasNext()) {
+            synIter.next();
+            while (synIter.hasNext()) {
+                SyntaxObject synObj = synIter.next();
                 if (synObj instanceof NounProfileCluster) {
                     NounProfileCluster cluster = (NounProfileCluster)synObj;
                     if (!cluster.hasClusterStreak()) {
-                        synListIter.remove();
+                        synIter.remove();
                     }
                 }
             }
             
-            if (syntaxList.isEmpty()) {
+            if (synIter.peekList().isEmpty()) {
                 // We couldn't find a noun that is being consistently
                 // referred to, so the input doesn't make sense.
                 throw new ContextException("Failed to find noun with full streak");
@@ -433,17 +417,20 @@ class PromptContext {
         TreeSet<VocabularyWord> suggestions = new TreeSet<>(
                 new VocabularySuggestionComparator()
         );
-        syntaxList = context.syntaxSequence.get(context.syntaxSequence.size() - 1);
-        ListIterator<SyntaxObject> lastIter = syntaxList.listIterator();
+        ArrayList<SyntaxObject> lastList = context.getLastList();
+        ListIterator<SyntaxObject> lastIter = lastList.listIterator();
         while (lastIter.hasNext()) {
             SyntaxObject synObj = lastIter.next();
             if (synObj instanceof NounProfileCluster) {
-                suggestions.addAll(((NounProfileCluster)synObj).unmentioned);
+                NounProfileCluster cluster = (NounProfileCluster)synObj;
+                if (!cluster.isComplete) {
+                    suggestions.addAll(cluster.unmentioned);
+                    continue;
+                }
             }
-            else {
-                suggestions.addAll(nounStarters);
-                break;
-            }
+            
+            suggestions.addAll(nounStarters);
+            break;
         }
         
         context.suggestions = suggestions.toArray(new VocabularyWord[suggestions.size()]);

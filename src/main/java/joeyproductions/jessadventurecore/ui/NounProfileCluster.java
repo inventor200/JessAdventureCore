@@ -42,6 +42,8 @@ public class NounProfileCluster implements SyntaxObject {
     final TreeSet<VocabularyWord> unmentioned;
     final TreeSet<VocabularyWord> mentioned;
     
+    boolean isComplete;
+    
     NounProfileCluster(int clusterIndex, ArrayList<VocabularyWord> wordList) {
         this.clusterIndex = clusterIndex;
         marks = new ArrayList<>();
@@ -49,6 +51,7 @@ public class NounProfileCluster implements SyntaxObject {
         unmentioned = new TreeSet<>(comp);
         mentioned = new TreeSet<>(comp);
         unmentioned.addAll(wordList);
+        isComplete = false;
     }
     
     boolean isRelevantTo(VocabularyWord word) {
